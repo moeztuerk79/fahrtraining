@@ -1,0 +1,1218 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<title>Driver.AI — Fahrtraining</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+html, body { background: #0a0d12; color: #e8edf2; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; min-height: 100vh; overscroll-behavior: none; }
+.app { padding: 14px; max-width: 600px; margin: 0 auto; padding-bottom: 80px; }
+.header { padding: 14px 18px; border: 1px solid #232a35; background: #11151c; margin-bottom: 16px; border-left: 4px solid #ff4500; display: flex; justify-content: space-between; align-items: center; }
+.header h1 { font-size: 16px; letter-spacing: 0.1em; font-weight: 700; color: #ff4500; }
+.header p { font-size: 10px; color: #8b95a3; margin-top: 2px; letter-spacing: 0.1em; }
+.header-status { display: flex; align-items: center; gap: 6px; font-size: 10px; color: #00ff88; font-family: 'Menlo', monospace; }
+.header-status .dot { width: 7px; height: 7px; background: #00ff88; border-radius: 50%; animation: pulse 1.5s ease-in-out infinite; }
+@keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
+.screen { display: none; }
+.screen.active { display: block; }
+.screen-title { font-size: 22px; font-weight: 700; margin-bottom: 6px; }
+.screen-sub { font-size: 13px; color: #8b95a3; margin-bottom: 20px; line-height: 1.5; }
+.info-box { padding: 14px 16px; border: 1px solid #232a35; background: #11151c; margin-bottom: 14px; border-left: 3px solid #00d9ff; font-size: 12px; color: #c0c8d4; line-height: 1.6; }
+.info-box.warn { border-left-color: #ffb800; }
+.info-box.purple { border-left-color: #a78bfa; }
+.info-box.green { border-left-color: #00ff88; }
+.info-box strong { color: #e8edf2; }
+.card { background: #11151c; border: 1px solid #232a35; padding: 16px; margin-bottom: 10px; cursor: pointer; position: relative; }
+.card:active { border-color: #ff4500; }
+.card.done { border-left: 3px solid #00ff88; }
+.card.in-progress { border-left: 3px solid #ffb800; }
+.card.pending { border-left: 3px solid #555f6e; }
+.card-row { display: flex; justify-content: space-between; align-items: center; }
+.card-info { flex: 1; }
+.card-num { font-size: 10px; letter-spacing: 0.2em; color: #555f6e; text-transform: uppercase; margin-bottom: 4px; font-family: 'Menlo', monospace; }
+.card-title { font-size: 16px; font-weight: 600; margin-bottom: 4px; }
+.card-meta { font-size: 11px; color: #8b95a3; font-family: 'Menlo', monospace; }
+.card-status { text-align: right; }
+.card-status-label { font-size: 10px; letter-spacing: 0.1em; text-transform: uppercase; font-family: 'Menlo', monospace; }
+.card-status-label.done { color: #00ff88; }
+.card-status-label.in-progress { color: #ffb800; }
+.card-status-label.pending { color: #555f6e; }
+.card-arrow { font-size: 18px; color: #555f6e; margin-left: 12px; }
+.btn { display: block; width: 100%; padding: 16px; background: #ff4500; color: white; font-size: 14px; letter-spacing: 0.1em; text-transform: uppercase; font-weight: 700; border: none; margin-bottom: 8px; cursor: pointer; font-family: inherit; }
+.btn:active { background: #cc3700; transform: scale(0.98); }
+.btn.secondary { background: transparent; border: 1px solid #2f3845; color: #e8edf2; font-weight: 500; }
+.btn.secondary:active { border-color: #ff4500; color: #ff4500; }
+.btn.green { background: #00ff88; color: #06080c; }
+.btn.green:active { background: #00cc6e; }
+.btn.red { background: #ff2e4e; }
+.btn.red:active { background: #cc1f3a; }
+.btn.large { padding: 22px 18px; font-size: 16px; }
+.btn.small { padding: 12px; font-size: 11px; }
+.btn:disabled { background: #2f3845; color: #555f6e; cursor: not-allowed; }
+.btn-row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 12px; }
+.back-btn { background: transparent; border: none; color: #8b95a3; font-size: 13px; padding: 8px 0; margin-bottom: 10px; cursor: pointer; font-family: inherit; }
+.back-btn:active { color: #ff4500; }
+.form-field { margin-bottom: 14px; }
+.form-label { font-size: 11px; color: #8b95a3; letter-spacing: 0.15em; text-transform: uppercase; margin-bottom: 6px; font-family: 'Menlo', monospace; }
+.form-input { width: 100%; padding: 14px; background: #11151c; border: 1px solid #232a35; color: #e8edf2; font-size: 15px; font-family: inherit; }
+.form-input:focus { outline: none; border-color: #ff4500; }
+.participant-row { display: flex; align-items: center; gap: 10px; padding: 12px; background: #11151c; border: 1px solid #232a35; margin-bottom: 6px; }
+.participant-row .num { width: 30px; height: 30px; background: #1a2230; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 700; color: #ff4500; flex-shrink: 0; font-family: 'Menlo', monospace; }
+.participant-row input { flex: 1; padding: 10px; background: #0a0d12; border: 1px solid #232a35; color: #e8edf2; font-size: 14px; font-family: inherit; }
+.participant-row input:focus { outline: none; border-color: #ff4500; }
+.participant-row .remove-btn { background: transparent; border: 1px solid #2f3845; color: #ff2e4e; padding: 8px 12px; cursor: pointer; font-size: 18px; font-family: inherit; }
+.session-banner { background: linear-gradient(135deg, #1a1a3a 0%, #11151c 100%); border: 1px solid #4a4a8a; border-left: 3px solid #a78bfa; padding: 12px 16px; margin-bottom: 14px; }
+.session-banner .label { font-size: 9px; letter-spacing: 0.2em; color: #a78bfa; text-transform: uppercase; margin-bottom: 4px; font-family: 'Menlo', monospace; }
+.session-banner .value { font-size: 14px; font-weight: 600; }
+.session-banner .sub { font-size: 11px; color: #8b95a3; margin-top: 2px; font-family: 'Menlo', monospace; }
+.recording-display { background: #06080c; border: 2px solid #ff2e4e; padding: 24px; margin-bottom: 14px; text-align: center; }
+.recording-display.standby { border-color: #232a35; }
+.recording-status { font-size: 10px; letter-spacing: 0.25em; text-transform: uppercase; color: #ff2e4e; margin-bottom: 12px; font-weight: 600; }
+.recording-display.standby .recording-status { color: #8b95a3; }
+.recording-timer { font-family: 'Menlo', monospace; font-size: 48px; font-weight: 700; color: white; letter-spacing: 0.05em; line-height: 1; margin-bottom: 4px; }
+.recording-display.standby .recording-timer { color: #555f6e; }
+.recording-sub { font-size: 11px; color: #8b95a3; font-family: 'Menlo', monospace; letter-spacing: 0.1em; }
+.live-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 1px; background: #232a35; margin-bottom: 14px; }
+.live-cell { background: #11151c; padding: 12px; text-align: center; }
+.live-label { font-size: 9px; letter-spacing: 0.15em; color: #555f6e; text-transform: uppercase; margin-bottom: 4px; }
+.live-value { font-family: 'Menlo', monospace; font-size: 18px; font-weight: 500; }
+.live-value.warn { color: #ffb800; }
+.live-value.alert { color: #ff2e4e; }
+.criterion-item { padding: 14px 16px; background: #11151c; border: 1px solid #232a35; margin-bottom: 6px; display: flex; align-items: center; gap: 12px; }
+.criterion-checkbox { width: 26px; height: 26px; border: 2px solid #2f3845; display: flex; align-items: center; justify-content: center; font-size: 14px; font-weight: 700; flex-shrink: 0; }
+.criterion-checkbox.pass { border-color: #00ff88; background: #0a3520; color: #00ff88; }
+.criterion-checkbox.fail { border-color: #ff2e4e; background: #3a0f17; color: #ff2e4e; }
+.criterion-info { flex: 1; }
+.criterion-name { font-size: 13px; margin-bottom: 2px; }
+.criterion-meta { font-size: 10px; color: #8b95a3; font-family: 'Menlo', monospace; }
+.criterion-weight { font-size: 9px; padding: 3px 7px; letter-spacing: 0.1em; text-transform: uppercase; font-family: 'Menlo', monospace; font-weight: 600; }
+.criterion-weight.std { background: rgba(156,163,175,0.15); color: #9ca3af; }
+.criterion-weight.bns { background: rgba(255,69,0,0.15); color: #ff4500; }
+.criterion-weight.ko { background: rgba(255,46,78,0.15); color: #ff2e4e; }
+.pylon-input { background: #11151c; border: 1px solid #ffb800; padding: 18px; margin-bottom: 14px; text-align: center; }
+.pylon-input .label { font-size: 11px; color: #ffb800; letter-spacing: 0.15em; text-transform: uppercase; margin-bottom: 12px; font-weight: 600; }
+.pylon-input .question { font-size: 15px; margin-bottom: 14px; }
+.result-grade { text-align: center; padding: 32px 20px; border: 2px solid #00ff88; background: #0a1f15; margin-bottom: 14px; }
+.result-grade.fail { border-color: #ff2e4e; background: #1f0a10; }
+.result-grade.warn { border-color: #ffb800; background: #1f1808; }
+.result-grade-label { font-size: 10px; letter-spacing: 0.25em; text-transform: uppercase; color: #00ff88; margin-bottom: 8px; font-weight: 600; }
+.result-grade.fail .result-grade-label { color: #ff2e4e; }
+.result-grade.warn .result-grade-label { color: #ffb800; }
+.result-grade-value { font-size: 72px; font-weight: 700; line-height: 1; margin-bottom: 8px; color: #00ff88; font-family: 'Menlo', monospace; }
+.result-grade.fail .result-grade-value { color: #ff2e4e; }
+.result-grade.warn .result-grade-value { color: #ffb800; }
+.result-grade-status { font-size: 12px; letter-spacing: 0.15em; text-transform: uppercase; color: #c0c8d4; }
+.run-row { display: flex; align-items: center; padding: 12px 14px; background: #11151c; border: 1px solid #232a35; margin-bottom: 6px; gap: 12px; }
+.run-num { width: 28px; height: 28px; background: #1a2230; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 700; color: #8b95a3; flex-shrink: 0; }
+.run-row.done .run-num { background: #0a3520; color: #00ff88; }
+.run-row.fail .run-num { background: #3a0f17; color: #ff2e4e; }
+.run-info { flex: 1; }
+.run-title { font-size: 13px; margin-bottom: 2px; }
+.run-meta { font-size: 10px; color: #8b95a3; font-family: 'Menlo', monospace; }
+.run-grade { font-family: 'Menlo', monospace; font-size: 18px; font-weight: 700; }
+.run-grade.good { color: #00ff88; }
+.run-grade.warn { color: #ffb800; }
+.run-grade.bad { color: #ff2e4e; }
+.run-grade.pending { color: #555f6e; }
+.overview-table { background: #11151c; border: 1px solid #232a35; overflow: hidden; margin-bottom: 14px; }
+.overview-row { display: grid; grid-template-columns: 1.6fr repeat(4, 0.7fr) 0.8fr; gap: 4px; padding: 10px 8px; border-bottom: 1px solid #232a35; align-items: center; }
+.overview-row.header { background: #1a2230; font-size: 9px; letter-spacing: 0.1em; color: #8b95a3; text-transform: uppercase; font-family: 'Menlo', monospace; }
+.overview-row:last-child { border-bottom: none; }
+.overview-name { font-size: 12px; }
+.overview-cell { text-align: center; font-family: 'Menlo', monospace; font-size: 13px; font-weight: 600; }
+.overview-cell.good { color: #00ff88; }
+.overview-cell.warn { color: #ffb800; }
+.overview-cell.bad { color: #ff2e4e; }
+.overview-cell.empty { color: #555f6e; }
+.demo-banner { background: #1f1808; border: 1px solid #ffb800; padding: 10px 14px; margin-bottom: 12px; font-size: 11px; color: #ffb800; text-align: center; font-family: 'Menlo', monospace; letter-spacing: 0.1em; }
+.chip { display: inline-block; padding: 4px 10px; background: rgba(255, 69, 0, 0.15); color: #ff4500; font-size: 11px; font-family: 'Menlo', monospace; letter-spacing: 0.05em; margin-right: 6px; margin-bottom: 4px; }
+</style>
+</head>
+<body>
+
+<div class="app">
+
+<header class="header">
+  <div>
+    <h1>DRIVER.AI</h1>
+    <p>Fahrtraining</p>
+  </div>
+  <div class="header-status">
+    <div class="dot"></div>
+    <span id="statusText">Bereit</span>
+  </div>
+</header>
+
+<!-- WELCOME -->
+<div class="screen active" id="screen-welcome">
+  <div class="screen-title">Willkommen</div>
+  <div class="screen-sub">Driver.AI Fahrtraining-System</div>
+  <div class="info-box">
+    <strong>So funktioniert die App:</strong><br>
+    1. Trainer legt Session an (Datum, Ort, Teilnehmer)<br>
+    2. Trainer fährt jede Übung einmal als Referenz<br>
+    3. Teilnehmer wählen sich aus und fahren Durchläufe<br>
+    4. Trainer sieht am Ende eine Übersicht aller Teilnehmer
+  </div>
+  <button class="btn large" onclick="requestPerms()">▶ Sensoren freigeben &amp; Starten</button>
+  <button class="btn secondary" onclick="skipPerms()">Im Demo-Modus weiter (ohne Auto)</button>
+  <div class="info-box warn" style="margin-top: 14px;">
+    <strong>Demo-Modus:</strong> Heute nicht im Auto? Klicken Sie sich durch alle Funktionen mit simulierten Daten.
+  </div>
+</div>
+
+<!-- HOME -->
+<div class="screen" id="screen-home">
+  <div class="screen-title">Hauptmenü</div>
+  <div class="screen-sub">Was möchtest du tun?</div>
+
+  <div id="sessionBanner" style="display:none;">
+    <div class="session-banner">
+      <div class="label">AKTIVE SESSION</div>
+      <div class="value" id="bannerTitle">—</div>
+      <div class="sub" id="bannerMeta">—</div>
+    </div>
+  </div>
+
+  <div class="card pending" onclick="newSession()">
+    <div class="card-row">
+      <div class="card-info">
+        <div class="card-num">OPTION 01</div>
+        <div class="card-title">Neue Session anlegen</div>
+        <div class="card-meta">Trainer-Setup · Teilnehmer eintragen</div>
+      </div>
+      <div class="card-arrow">›</div>
+    </div>
+  </div>
+
+  <div class="card pending" id="continueCard" style="display:none;" onclick="enterDashboard()">
+    <div class="card-row">
+      <div class="card-info">
+        <div class="card-num">OPTION 02</div>
+        <div class="card-title">Aktuelle Session fortsetzen</div>
+        <div class="card-meta" id="continueMeta">—</div>
+      </div>
+      <div class="card-arrow">›</div>
+    </div>
+  </div>
+
+  <div class="card pending" id="overviewCard" style="display:none;" onclick="showOverview()">
+    <div class="card-row">
+      <div class="card-info">
+        <div class="card-num">OPTION 03</div>
+        <div class="card-title">Übersicht ansehen</div>
+        <div class="card-meta">Alle Teilnehmer und Ergebnisse</div>
+      </div>
+      <div class="card-arrow">›</div>
+    </div>
+  </div>
+</div>
+
+<!-- SESSION SETUP -->
+<div class="screen" id="screen-setup">
+  <button class="back-btn" onclick="showScreen('screen-home')">‹ Zurück</button>
+  <div class="screen-title">Session anlegen</div>
+  <div class="screen-sub">Trainer-Setup für den Trainingstag</div>
+
+  <div class="form-field">
+    <div class="form-label">Datum</div>
+    <input type="date" class="form-input" id="fDate">
+  </div>
+  <div class="form-field">
+    <div class="form-label">Trainings-Ort</div>
+    <input type="text" class="form-input" id="fLocation" placeholder="z.B. Trainingsgelände Süd">
+  </div>
+  <div class="form-field">
+    <div class="form-label">Trainer-Name</div>
+    <input type="text" class="form-input" id="fTrainer" placeholder="Vor- und Nachname">
+  </div>
+  <div class="form-field">
+    <div class="form-label">Trainings-Programm</div>
+    <select class="form-input" id="fProgram">
+      <option value="basis">Basistraining (4 Übungen)</option>
+    </select>
+  </div>
+  <div class="form-field">
+    <div class="form-label">Teilnehmer</div>
+    <div id="pList"></div>
+    <button class="btn secondary small" onclick="addP()" style="margin-top: 8px;">+ Teilnehmer hinzufügen</button>
+  </div>
+  <button class="btn large" onclick="createSession()">▶ Session starten</button>
+</div>
+
+<!-- DASHBOARD -->
+<div class="screen" id="screen-dashboard">
+  <button class="back-btn" onclick="showScreen('screen-home')">‹ Hauptmenü</button>
+  <div class="screen-title">Session-Dashboard</div>
+  <div class="screen-sub" id="dashSub">—</div>
+
+  <div class="session-banner">
+    <div class="label">SESSION</div>
+    <div class="value" id="dashTitle">—</div>
+    <div class="sub" id="dashMeta">—</div>
+  </div>
+
+  <div class="info-box" id="refStatus">
+    <strong id="refStatusTitle">—</strong><br>
+    <span id="refStatusText">—</span>
+  </div>
+
+  <button class="btn" onclick="enterTrainerMode()">◆ Trainer-Modus: Referenzen aufzeichnen</button>
+  <button class="btn green" id="participantBtn" onclick="enterParticipantMode()">▶ Teilnehmer-Modus: Durchläufe</button>
+  <button class="btn secondary" onclick="showOverview()">📊 Übersicht / Ergebnisse</button>
+
+  <div id="demoQuickBox" style="display:none; margin-top: 16px;">
+    <div class="demo-banner">DEMO-MODUS · Schnell-Setup zum Testen</div>
+    <button class="btn secondary small" onclick="fillDummyRefs()">⚡ Alle Referenzen mit Dummy-Werten füllen</button>
+    <button class="btn secondary small" onclick="fillDummyRuns()" style="margin-top: 4px;">⚡ Alle Teilnehmer-Durchläufe simulieren</button>
+  </div>
+</div>
+
+<!-- PARTICIPANT SELECT -->
+<div class="screen" id="screen-pselect">
+  <button class="back-btn" onclick="showScreen('screen-dashboard')">‹ Zurück</button>
+  <div class="screen-title">Teilnehmer wählen</div>
+  <div class="screen-sub">Wer fährt jetzt?</div>
+  <div id="pSelectList"></div>
+</div>
+
+<!-- EXERCISES -->
+<div class="screen" id="screen-exercises">
+  <button class="back-btn" onclick="backExercises()">‹ Zurück</button>
+  <div class="screen-title" id="exTitle">Übungen</div>
+  <div class="screen-sub" id="exSub">—</div>
+  <div class="info-box" id="exBanner">
+    <strong id="exBannerTitle">—</strong><br>
+    <span id="exBannerText">—</span>
+  </div>
+  <div id="exCards"></div>
+</div>
+
+<!-- EXERCISE DETAIL -->
+<div class="screen" id="screen-exercise">
+  <button class="back-btn" onclick="backFromExercise()">‹ Zurück</button>
+  <div class="screen-title" id="eTitle">Übung</div>
+  <div class="screen-sub" id="eDesc">—</div>
+
+  <div class="session-banner">
+    <div class="label" id="ctxLabel">—</div>
+    <div class="value" id="ctxValue">—</div>
+    <div class="sub" id="ctxSub">—</div>
+  </div>
+
+  <div class="recording-display standby" id="recDisplay">
+    <div class="recording-status" id="recStatus">Bereit</div>
+    <div class="recording-timer" id="recTimer">00:00.0</div>
+    <div class="recording-sub" id="recSub">START drücken zum Aufzeichnen</div>
+  </div>
+
+  <div class="live-grid">
+    <div class="live-cell">
+      <div class="live-label">Speed</div>
+      <div class="live-value" id="lSpeed">0 km/h</div>
+    </div>
+    <div class="live-cell">
+      <div class="live-label">Längs G</div>
+      <div class="live-value" id="lLong">0.00g</div>
+    </div>
+    <div class="live-cell">
+      <div class="live-label">Quer G</div>
+      <div class="live-value" id="lLat">0.00g</div>
+    </div>
+  </div>
+
+  <button class="btn green large" id="ssBtn" onclick="toggleRec()">▶ Aufzeichnung starten</button>
+
+  <div id="demoBtns" style="display:none; margin-top: 12px;">
+    <div class="demo-banner">DEMO-MODUS: Wähle ein simuliertes Ergebnis</div>
+    <div class="btn-row">
+      <button class="btn small green" onclick="simRun('good')">Guter Durchlauf</button>
+      <button class="btn small secondary" onclick="simRun('warn')">Mittel</button>
+    </div>
+    <button class="btn small red" onclick="simRun('bad')" style="margin-top: 8px;">Schlechter / Durchgefallen</button>
+  </div>
+
+  <div id="runsBox" style="margin-top: 18px; display: none;">
+    <div style="font-size: 11px; letter-spacing: 0.15em; text-transform: uppercase; color: #8b95a3; margin-bottom: 8px; font-family: 'Menlo', monospace;">Durchläufe</div>
+    <div id="runsList"></div>
+  </div>
+</div>
+
+<!-- EVALUATION -->
+<div class="screen" id="screen-eval">
+  <div class="screen-title" id="evTitle">Auswertung</div>
+  <div class="screen-sub" id="evSub">—</div>
+
+  <div class="pylon-input" id="pylonBox" style="display:none;">
+    <div class="label">◤ Trainer-Eingabe nötig</div>
+    <div class="question" id="pylonQ">Wie viele Pylonen sind umgefallen?</div>
+    <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin-bottom: 10px;">
+      <button class="btn green" onclick="setPylonCount(0)" style="padding: 16px 8px;">0</button>
+      <button class="btn red" onclick="setPylonCount(1)" style="padding: 16px 8px;">1</button>
+      <button class="btn red" onclick="setPylonCount(2)" style="padding: 16px 8px;">2</button>
+      <button class="btn red" onclick="setPylonCount(3)" style="padding: 16px 8px;">3+</button>
+    </div>
+    <div style="font-size: 11px; color: #8b95a3; font-family: 'Menlo', monospace; letter-spacing: 0.05em;">
+      0 = alle stehen geblieben (✓) · ≥1 = nicht erfüllt (✗)
+    </div>
+  </div>
+
+  <div id="evResult" style="display: none;">
+    <div class="result-grade" id="resGrade">
+      <div class="result-grade-label">Endnote</div>
+      <div class="result-grade-value" id="resValue">—</div>
+      <div class="result-grade-status" id="resStatus">—</div>
+    </div>
+    <div style="font-size: 11px; letter-spacing: 0.15em; text-transform: uppercase; color: #8b95a3; margin-bottom: 8px; font-family: 'Menlo', monospace;">Kriterien</div>
+    <div id="critList"></div>
+    <button class="btn" onclick="continueEval()" style="margin-top: 14px;">Weiter</button>
+  </div>
+</div>
+
+<!-- TRAINER REVIEW (Pylonen-Eingabe nachträglich) -->
+<div class="screen" id="screen-review">
+  <button class="back-btn" onclick="backFromReview()">‹ Zurück</button>
+  <div class="screen-title" id="reviewTitle">Pylonen-Eingabe</div>
+  <div class="screen-sub" id="reviewSub">—</div>
+  <div class="info-box warn">
+    <strong>◆ Trainer-Eingabe</strong><br>
+    Für jeden Durchlauf eintragen: Wie viele Pylonen sind umgefallen?
+  </div>
+  <div id="reviewList"></div>
+</div>
+
+<!-- OVERVIEW -->
+<div class="screen" id="screen-overview">
+  <button class="back-btn" onclick="showScreen('screen-dashboard')">‹ Zurück</button>
+  <div class="screen-title">Übersicht</div>
+  <div class="screen-sub" id="ovSub">Alle Teilnehmer und Ergebnisse</div>
+  <div id="ovContent"></div>
+  <button class="btn secondary" onclick="exportJSON()" style="margin-top: 14px;">📥 Daten exportieren (JSON)</button>
+  <button class="btn secondary" onclick="confirmReset()" style="margin-top: 8px;">🗑 Session löschen</button>
+</div>
+
+</div>
+
+<script>
+'use strict';
+
+const EX = [
+  { id:'slalom', num:'01', name:'Slalom', desc:'Pylonen-Slalom mit 18m Abstand, 7 Pylonen. Zügige saubere Durchfahrt, Stillstand in Zielzone.',
+    refType:'time', tolerance:4.0,
+    criteria:[
+      {id:'pylons', name:'Alle Pylonen stehen geblieben', weight:'std', source:'trainer', pass:2.0, fail:5.0},
+      {id:'time', name:'Zielzeit eingehalten', weight:'bns', source:'time', pass:1.0, fail:4.0},
+      {id:'stop', name:'Stillstand in Zielzone', weight:'ko', source:'auto', pass:2.0, fail:5.0}
+    ]},
+  { id:'hsb', num:'02', name:'Highspeed-Bremsung', desc:'Vollbremsung aus 160 km/h (trocken) bzw. 140 km/h (nass) bis Stillstand.',
+    refType:'speed', refValue:160,
+    criteria:[
+      {id:'brakepoint', name:'Bremspunkt getroffen', weight:'std', source:'auto', pass:2.0, fail:5.0},
+      {id:'entry_speed', name:'Eintrittsgeschwindigkeit erreicht', weight:'ko', source:'auto', pass:2.0, fail:5.0},
+      {id:'full_brake', name:'Vollbremsung bis Stillstand', weight:'ko', source:'auto', pass:2.0, fail:4.0}
+    ]},
+  { id:'lc', num:'03', name:'Doppelter Spurwechsel', desc:'Spurwechsel mit 70 km/h Eintrittsgeschwindigkeit, Hindernis ausweichen, Zielzone treffen.',
+    refType:'speed', refValue:70,
+    criteria:[
+      {id:'target_zone', name:'Zielzone durchfahren', weight:'std', source:'auto', pass:2.0, fail:5.0},
+      {id:'entry_speed', name:'Eintrittsgeschwindigkeit (67-73 km/h)', weight:'ko', source:'auto', pass:2.0, fail:5.0},
+      {id:'pylons', name:'Alle Pylonen stehen geblieben', weight:'ko', source:'trainer', pass:2.0, fail:4.0}
+    ]},
+  { id:'ba', num:'04', name:'Bremsen und Ausweichen', desc:'Bremsen und gleichzeitig ausweichen. 70 km/h Eintrittsgeschwindigkeit, ABS mit Ausweichmanöver.',
+    refType:'speed', refValue:70,
+    criteria:[
+      {id:'target_zone', name:'Zielzone durchfahren', weight:'std', source:'auto', pass:2.0, fail:5.0},
+      {id:'entry_speed', name:'Eintrittsgeschwindigkeit (67-73 km/h)', weight:'ko', source:'auto', pass:2.0, fail:5.0},
+      {id:'pylons', name:'Alle Pylonen stehen geblieben', weight:'ko', source:'trainer', pass:2.0, fail:4.0}
+    ]}
+];
+
+let state = {
+  perms:false, demo:false,
+  session:null,
+  mode:null, currentP:null, currentEx:null,
+  rec:false, recStart:0, recData:[], recTimer:null,
+  currentRun:null, pendingPylon:null
+};
+let sd = { ax:0, ay:0, az:0, yaw:0, speed:0 };
+let pCount = 0;
+
+function save() { try { if(state.session) localStorage.setItem('driverai_session', JSON.stringify(state.session)); } catch(e){} }
+function load() { try { const s = localStorage.getItem('driverai_session'); if(s) state.session = JSON.parse(s); } catch(e){} }
+
+async function requestPerms() {
+  try {
+    if (typeof DeviceMotionEvent !== 'undefined' && typeof DeviceMotionEvent.requestPermission === 'function') {
+      const r = await DeviceMotionEvent.requestPermission();
+      if (r !== 'granted') { if (confirm('Sensor-Zugriff verweigert. Demo-Modus?')) skipPerms(); return; }
+    }
+    if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
+      try { await DeviceOrientationEvent.requestPermission(); } catch(e){}
+    }
+    window.addEventListener('devicemotion', onMotion);
+    if (navigator.geolocation) {
+      navigator.geolocation.watchPosition(
+        p => { sd.speed = p.coords.speed != null ? p.coords.speed * 3.6 : 0; },
+        () => {}, { enableHighAccuracy:true, maximumAge:200 }
+      );
+    }
+    state.perms = true;
+    document.getElementById('statusText').textContent = 'Live';
+    goHome();
+  } catch(e) { if (confirm('Fehler: ' + e.message + '\nDemo-Modus?')) skipPerms(); }
+}
+
+function skipPerms() {
+  state.demo = true; state.perms = true;
+  document.getElementById('statusText').textContent = 'Demo';
+  goHome();
+}
+
+function onMotion(e) {
+  const acc = e.accelerationIncludingGravity || e.acceleration;
+  if (!acc) return;
+  const G = 9.81;
+  sd.ax = (acc.x||0)/G; sd.ay = (acc.y||0)/G; sd.az = (acc.z||0)/G;
+  if (e.rotationRate && e.rotationRate.alpha != null) sd.yaw = e.rotationRate.alpha;
+  updateLive();
+  if (state.rec) state.recData.push({t:Date.now()-state.recStart, ax:sd.ax, ay:sd.ay, az:sd.az, yaw:sd.yaw, speed:sd.speed});
+}
+
+function updateLive() {
+  if (!document.getElementById('screen-exercise').classList.contains('active')) return;
+  document.getElementById('lSpeed').textContent = Math.round(Math.max(0,sd.speed)) + ' km/h';
+  const lL = document.getElementById('lLong');
+  lL.textContent = sd.ax.toFixed(2)+'g'; lL.className = 'live-value' + cls(sd.ax);
+  const lA = document.getElementById('lLat');
+  lA.textContent = sd.ay.toFixed(2)+'g'; lA.className = 'live-value' + cls(sd.ay);
+}
+
+function cls(g) { const a=Math.abs(g); if(a>0.7) return ' alert'; if(a>0.3) return ' warn'; return ''; }
+
+function showScreen(id) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+  window.scrollTo(0,0);
+}
+
+function goHome() { load(); refreshHome(); showScreen('screen-home'); }
+
+function refreshHome() {
+  if (state.session) {
+    document.getElementById('sessionBanner').style.display='block';
+    document.getElementById('continueCard').style.display='block';
+    document.getElementById('overviewCard').style.display='block';
+    document.getElementById('bannerTitle').textContent = state.session.location;
+    document.getElementById('bannerMeta').textContent = `${state.session.date} · Trainer: ${state.session.trainer} · ${state.session.participants.length} Teilnehmer`;
+    document.getElementById('continueMeta').textContent = `${state.session.location} · ${state.session.date}`;
+  } else {
+    document.getElementById('sessionBanner').style.display='none';
+    document.getElementById('continueCard').style.display='none';
+    document.getElementById('overviewCard').style.display='none';
+  }
+}
+
+function newSession() {
+  if (state.session && !confirm('Es gibt eine aktive Session. Neue anlegen und alte verwerfen?')) return;
+  document.getElementById('fDate').value = new Date().toISOString().substring(0,10);
+  document.getElementById('fLocation').value = '';
+  document.getElementById('fTrainer').value = '';
+  pCount = 0;
+  document.getElementById('pList').innerHTML = '';
+  for (let i=0; i<4; i++) addP();
+  showScreen('screen-setup');
+}
+
+function addP() {
+  pCount++;
+  const list = document.getElementById('pList');
+  const row = document.createElement('div');
+  row.className = 'participant-row';
+  row.innerHTML = `<div class="num">${pCount}</div><input type="text" placeholder="Name Teilnehmer ${pCount}" class="p-input"><button class="remove-btn" onclick="this.parentElement.remove()">×</button>`;
+  list.appendChild(row);
+}
+
+function createSession() {
+  const date = document.getElementById('fDate').value;
+  const location = document.getElementById('fLocation').value.trim();
+  const trainer = document.getElementById('fTrainer').value.trim();
+  if (!date || !location || !trainer) { alert('Bitte Datum, Ort und Trainer-Name ausfüllen.'); return; }
+  const inputs = document.querySelectorAll('.p-input');
+  const ps = []; let n=1;
+  inputs.forEach(i => { const v=i.value.trim(); if(v) { ps.push({id:'p'+n, num:n, name:v, runs:{}}); n++; } });
+  if (ps.length === 0) { alert('Mindestens einen Teilnehmer eintragen.'); return; }
+  state.session = { id:'s_'+Date.now(), date, location, trainer, program:'basis', participants:ps, references:{}, createdAt:Date.now() };
+  save(); refreshHome(); enterDashboard();
+}
+
+function enterDashboard() {
+  if (!state.session) return;
+  document.getElementById('dashTitle').textContent = state.session.location;
+  document.getElementById('dashMeta').textContent = `${state.session.date} · Trainer: ${state.session.trainer}`;
+  document.getElementById('dashSub').textContent = `${state.session.participants.length} Teilnehmer · ${EX.length} Übungen`;
+
+  // Show demo quick-fill buttons if in demo mode
+  document.getElementById('demoQuickBox').style.display = state.demo ? 'block' : 'none';
+
+  const refsCount = Object.keys(state.session.references).length;
+  const rs = document.getElementById('refStatus');
+  rs.className = 'info-box';
+  if (refsCount === EX.length) {
+    rs.classList.add('green');
+    document.getElementById('refStatusTitle').textContent = '✓ Alle Referenzen aufgezeichnet';
+    document.getElementById('refStatusText').textContent = 'Teilnehmer können jetzt fahren.';
+    document.getElementById('participantBtn').disabled = false;
+  } else if (refsCount === 0) {
+    rs.classList.add('warn');
+    document.getElementById('refStatusTitle').textContent = '⚠ Noch keine Referenzen';
+    document.getElementById('refStatusText').textContent = 'Bevor Teilnehmer fahren können, jede Übung als Referenz fahren.';
+    document.getElementById('participantBtn').disabled = true;
+  } else {
+    rs.classList.add('warn');
+    document.getElementById('refStatusTitle').textContent = `⚠ ${refsCount} von ${EX.length} Referenzen`;
+    document.getElementById('refStatusText').textContent = 'Teilnehmer können Übungen mit Referenz fahren.';
+    document.getElementById('participantBtn').disabled = false;
+  }
+  showScreen('screen-dashboard');
+}
+
+function enterTrainerMode() {
+  state.mode = 'trainer'; state.currentP = null;
+  document.getElementById('exTitle').textContent = 'Trainer-Referenzen';
+  document.getElementById('exSub').textContent = 'Fahre jede Übung einmal als Referenz';
+  document.getElementById('exBanner').className = 'info-box purple';
+  document.getElementById('exBannerTitle').textContent = '◆ Trainer-Modus';
+  document.getElementById('exBannerText').textContent = state.session.trainer + ' · Deine Zeiten werden als Soll-Werte gespeichert';
+  renderExCards();
+  showScreen('screen-exercises');
+}
+
+function enterParticipantMode() {
+  state.mode = 'participant';
+  const list = document.getElementById('pSelectList');
+  list.innerHTML = '';
+  state.session.participants.forEach(p => {
+    const completed = Object.keys(p.runs||{}).filter(k => (p.runs[k]||[]).length>0).length;
+    const card = document.createElement('div');
+    let cls='pending', lbl='Nicht gestartet';
+    if (completed === EX.length) { cls='done'; lbl='✓ Komplett'; }
+    else if (completed > 0) { cls='in-progress'; lbl=`${completed}/${EX.length} Übungen`; }
+    card.className = 'card ' + cls;
+    card.onclick = () => selectP(p.id);
+    card.innerHTML = `<div class="card-row"><div class="card-info"><div class="card-num">TEILNEHMER ${String(p.num).padStart(2,'0')}</div><div class="card-title">${p.name}</div><div class="card-meta">${completed} von ${EX.length} Übungen</div></div><div class="card-status"><div class="card-status-label ${cls}">${lbl}</div></div><div class="card-arrow">›</div></div>`;
+    list.appendChild(card);
+  });
+  showScreen('screen-pselect');
+}
+
+function selectP(pid) {
+  state.currentP = pid;
+  const p = state.session.participants.find(x=>x.id===pid);
+  document.getElementById('exTitle').textContent = p.name;
+  document.getElementById('exSub').textContent = `Teilnehmer Nr. ${p.num}`;
+  document.getElementById('exBanner').className = 'info-box';
+  document.getElementById('exBannerTitle').textContent = '▶ Teilnehmer-Modus';
+  document.getElementById('exBannerText').textContent = 'Wähle eine Übung. Bewertung erfolgt automatisch gegen Trainer-Referenz.';
+  renderExCards();
+  showScreen('screen-exercises');
+}
+
+// ============================================================================
+// PENDING PYLON ENTRIES (Trainer sammelt nach allen Durchläufen)
+// ============================================================================
+function getPendingPylonEntries(participantId, exerciseId) {
+  const p = state.session.participants.find(x => x.id === participantId);
+  if (!p || !p.runs[exerciseId]) return [];
+  return p.runs[exerciseId].filter(r => r.pylonPending === true);
+}
+
+function openPylonReview(participantId, exerciseId) {
+  const p = state.session.participants.find(x => x.id === participantId);
+  const ex = EX.find(e => e.id === exerciseId);
+  const pending = getPendingPylonEntries(participantId, exerciseId);
+  
+  if (pending.length === 0) {
+    alert('Keine offenen Trainer-Eingaben für diesen Teilnehmer und diese Übung.');
+    return;
+  }
+  
+  state.reviewParticipant = participantId;
+  state.reviewExercise = exerciseId;
+  state.reviewPending = pending;
+  
+  document.getElementById('reviewTitle').textContent = `${p.name} · ${ex.name}`;
+  document.getElementById('reviewSub').textContent = `${pending.length} Durchlauf${pending.length>1?'läufe':''} ohne Pylonen-Eingabe`;
+  
+  renderReviewList();
+  showScreen('screen-review');
+}
+
+function renderReviewList() {
+  const list = document.getElementById('reviewList');
+  list.innerHTML = '';
+  const ex = EX.find(e => e.id === state.reviewExercise);
+  const pylonCrit = ex.criteria.find(c => c.source === 'trainer');
+  
+  state.reviewPending.forEach((run, idx) => {
+    const div = document.createElement('div');
+    div.className = 'card pending';
+    div.style.cursor = 'default';
+    const runIdx = state.session.participants
+      .find(p => p.id === state.reviewParticipant)
+      .runs[state.reviewExercise].indexOf(run);
+    
+    div.innerHTML = `
+      <div style="font-size: 10px; color: #555f6e; letter-spacing: 0.2em; text-transform: uppercase; margin-bottom: 6px; font-family: 'Menlo', monospace;">DURCHLAUF ${runIdx + 1}</div>
+      <div style="font-size: 13px; color: #c0c8d4; margin-bottom: 10px;">
+        Dauer: <strong>${run.duration.toFixed(2)}s</strong> · 
+        Max Speed: <strong>${Math.round(run.stats.maxSpeed)} km/h</strong>
+      </div>
+      <div style="font-size: 13px; margin-bottom: 10px;">${pylonCrit.name}?</div>
+      <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px;">
+        <button class="btn green" onclick="setReviewPylon(${runIdx}, 0)" style="padding: 14px 6px; font-size: 14px;">0</button>
+        <button class="btn red" onclick="setReviewPylon(${runIdx}, 1)" style="padding: 14px 6px; font-size: 14px;">1</button>
+        <button class="btn red" onclick="setReviewPylon(${runIdx}, 2)" style="padding: 14px 6px; font-size: 14px;">2</button>
+        <button class="btn red" onclick="setReviewPylon(${runIdx}, 3)" style="padding: 14px 6px; font-size: 14px;">3+</button>
+      </div>
+      ${run.pylonCount != null ? `<div style="margin-top: 8px; font-size: 11px; color: #00ff88; font-family: 'Menlo', monospace;">✓ Eingegeben: ${run.pylonCount} Pylone${run.pylonCount === 1 ? '' : 'n'}</div>` : ''}
+    `;
+    list.appendChild(div);
+  });
+}
+
+function setReviewPylon(runIdx, count) {
+  const p = state.session.participants.find(x => x.id === state.reviewParticipant);
+  const run = p.runs[state.reviewExercise][runIdx];
+  const ex = EX.find(e => e.id === state.reviewExercise);
+  const pylonCrit = ex.criteria.find(c => c.source === 'trainer');
+  
+  run.pylonCount = count;
+  run.pylonPending = false;
+  run.evals[pylonCrit.id] = (count === 0);
+  
+  // Recalculate grade
+  let sw = 0, sf = 0, ko = false;
+  ex.criteria.forEach(c => {
+    const passed = run.evals[c.id];
+    const note = passed ? c.pass : c.fail;
+    let f = c.weight === 'bns' ? 3 : 1;
+    if (c.weight === 'ko' && !passed) ko = true;
+    sw += note * f; sf += f;
+  });
+  run.grade = ko ? 5.0 : sw / sf;
+  
+  save();
+  
+  // Update remaining pending list
+  state.reviewPending = getPendingPylonEntries(state.reviewParticipant, state.reviewExercise);
+  renderReviewList();
+  
+  // If all done, show success
+  if (state.reviewPending.length === 0) {
+    setTimeout(() => {
+      alert('Alle Pylonen-Eingaben für diesen Teilnehmer & Übung erledigt!');
+      backFromReview();
+    }, 300);
+  }
+}
+
+function backFromReview() {
+  showScreen('screen-pselect');
+  enterParticipantMode();
+}
+
+function renderExCards() {
+  const c = document.getElementById('exCards');
+  c.innerHTML = '';
+  EX.forEach(ex => {
+    let cls='pending', lbl='Ausstehend', meta=ex.criteria.length + ' Kriterien';
+    let pendingPylons = 0;
+    if (state.mode === 'trainer') {
+      if (state.session.references[ex.id] != null) {
+        cls='done'; lbl='Referenz ✓';
+        const r = state.session.references[ex.id];
+        meta = ex.refType==='time' ? `Referenz: ${r.toFixed(2)}s` : `Referenz: ${Math.round(r)} km/h`;
+      }
+    } else {
+      const p = state.session.participants.find(x=>x.id===state.currentP);
+      const runs = (p.runs && p.runs[ex.id]) || [];
+      pendingPylons = runs.filter(r => r.pylonPending === true).length;
+      if (runs.length > 0) {
+        if (pendingPylons > 0) {
+          cls='in-progress';
+          lbl=`${pendingPylons} ⚠ Eingabe nötig`;
+        } else {
+          cls='done';
+          lbl=`${runs.length} Durchlauf${runs.length>1?'e':''}`;
+        }
+        const best = Math.min(...runs.map(r=>r.grade));
+        meta = `Beste Note: ${best.toFixed(1)}${pendingPylons > 0 ? ' (vorläufig)' : ''}`;
+      } else if (state.session.references[ex.id] == null) {
+        lbl='Referenz fehlt!'; meta='Trainer muss erst Referenz fahren';
+      }
+    }
+    const card = document.createElement('div');
+    card.className = 'card ' + cls;
+    
+    // Special click behavior: if pylons pending, offer to review them
+    if (pendingPylons > 0) {
+      card.onclick = () => {
+        if (confirm(`${pendingPylons} Durchlauf${pendingPylons>1?'läufe':''} warten auf Pylonen-Eingabe.\n\n[OK] = Pylonen-Eingabe öffnen\n[Abbrechen] = Übung normal öffnen (neuer Durchlauf)`)) {
+          openPylonReview(state.currentP, ex.id);
+        } else {
+          openEx(ex.id);
+        }
+      };
+    } else {
+      card.onclick = () => openEx(ex.id);
+    }
+    
+    card.innerHTML = `<div class="card-row"><div class="card-info"><div class="card-num">ÜBUNG ${ex.num}</div><div class="card-title">${ex.name}</div><div class="card-meta">${meta}</div></div><div class="card-status"><div class="card-status-label ${cls}">${lbl}</div></div><div class="card-arrow">›</div></div>`;
+    c.appendChild(card);
+  });
+}
+
+function backExercises() {
+  if (state.mode === 'trainer') showScreen('screen-dashboard');
+  else showScreen('screen-pselect');
+}
+
+function openEx(id) {
+  const ex = EX.find(e=>e.id===id);
+  if (!ex) return;
+  if (state.mode === 'participant' && state.session.references[id] == null) {
+    alert('Trainer-Referenz fehlt für diese Übung.'); return;
+  }
+  state.currentEx = id;
+  document.getElementById('eTitle').textContent = `Übung ${ex.num} · ${ex.name}`;
+  document.getElementById('eDesc').textContent = ex.desc;
+  if (state.mode === 'trainer') {
+    document.getElementById('ctxLabel').textContent = 'TRAINER REFERENZ-FAHRT';
+    document.getElementById('ctxValue').textContent = state.session.trainer;
+    document.getElementById('ctxSub').textContent = 'Wird als Soll-Wert für Teilnehmer gespeichert';
+  } else {
+    const p = state.session.participants.find(x=>x.id===state.currentP);
+    const ref = state.session.references[id];
+    document.getElementById('ctxLabel').textContent = 'TEILNEHMER · ' + p.name.toUpperCase();
+    if (ex.refType === 'time') {
+      document.getElementById('ctxValue').textContent = `Referenz: ${ref.toFixed(2)} s`;
+      document.getElementById('ctxSub').textContent = `Ziel: ≤ ${(ref+ex.tolerance).toFixed(2)} s`;
+    } else {
+      document.getElementById('ctxValue').textContent = `Soll: ${ex.refValue} km/h`;
+      document.getElementById('ctxSub').textContent = 'Eintrittsgeschwindigkeit am Tor';
+    }
+  }
+  document.getElementById('demoBtns').style.display = state.demo ? 'block' : 'none';
+  let runs = [];
+  if (state.mode === 'trainer') {
+    if (state.session.references[id] != null) runs.push({label:'Referenz', time:state.session.references[id], grade:0});
+  } else {
+    const p = state.session.participants.find(x=>x.id===state.currentP);
+    runs = (p.runs && p.runs[id]) || [];
+  }
+  renderRuns(runs);
+  resetRec();
+  showScreen('screen-exercise');
+}
+
+function renderRuns(runs) {
+  const box = document.getElementById('runsBox');
+  const list = document.getElementById('runsList');
+  if (runs.length === 0) { box.style.display='none'; return; }
+  box.style.display='block';
+  list.innerHTML = '';
+  runs.forEach((r,i) => {
+    let cls='run-row', gcls='pending', text='—';
+    if (r.label === 'Referenz') {
+      cls += ' done'; text = r.time != null ? r.time.toFixed(2)+'s' : '—'; gcls='good';
+    } else if (r.grade != null) {
+      if (r.grade >= 4.5) { cls += ' fail'; gcls='bad'; }
+      else if (r.grade >= 3.5) gcls='warn';
+      else { cls += ' done'; gcls='good'; }
+      text = r.grade.toFixed(1);
+    }
+    const row = document.createElement('div');
+    row.className = cls;
+    row.innerHTML = `<div class="run-num">${r.label==='Referenz'?'R':i+1}</div><div class="run-info"><div class="run-title">${r.label||'Durchlauf '+(i+1)}</div><div class="run-meta">${r.duration?r.duration.toFixed(2)+'s':''}${r.label==='Referenz'?' · Soll':''}</div></div><div class="run-grade ${gcls}">${text}</div>`;
+    list.appendChild(row);
+  });
+}
+
+function backFromExercise() {
+  if (state.rec) { if (!confirm('Aufzeichnung läuft! Abbrechen?')) return; stopRec(true); }
+  showScreen('screen-exercises');
+  renderExCards();
+}
+
+function resetRec() {
+  const d = document.getElementById('recDisplay');
+  d.className = 'recording-display standby';
+  document.getElementById('recStatus').textContent = 'Bereit';
+  document.getElementById('recTimer').textContent = '00:00.0';
+  document.getElementById('recSub').textContent = 'START drücken zum Aufzeichnen';
+  const b = document.getElementById('ssBtn');
+  b.className = 'btn green large'; b.textContent = '▶ Aufzeichnung starten';
+}
+
+function toggleRec() { if (!state.rec) startRec(); else stopRec(false); }
+
+function startRec() {
+  state.rec = true; state.recStart = Date.now(); state.recData = [];
+  document.getElementById('recDisplay').className = 'recording-display';
+  document.getElementById('recStatus').textContent = '● Aufzeichnung läuft';
+  document.getElementById('recSub').textContent = 'STOPP drücken am Ende';
+  const b = document.getElementById('ssBtn');
+  b.className = 'btn red large'; b.textContent = '■ STOPP';
+  state.recTimer = setInterval(() => {
+    const e = (Date.now()-state.recStart)/1000;
+    const m = Math.floor(e/60), s = (e%60).toFixed(1);
+    document.getElementById('recTimer').textContent = `${String(m).padStart(2,'0')}:${String(s).padStart(4,'0')}`;
+  }, 100);
+}
+
+function stopRec(abort) {
+  state.rec = false; clearInterval(state.recTimer);
+  if (abort) { resetRec(); return; }
+  const dur = (Date.now()-state.recStart)/1000;
+  const stats = computeStats(state.recData, dur);
+  state.currentRun = { duration:dur, stats, timestamp:Date.now() };
+  if (state.mode === 'trainer') {
+    const ex = EX.find(e=>e.id===state.currentEx);
+    state.session.references[ex.id] = ex.refType==='time' ? dur : (stats.maxSpeed || ex.refValue);
+    save();
+    alert(`Referenz gespeichert!\n${ex.refType==='time'?'Zeit: '+dur.toFixed(2)+' s':'Speed: '+Math.round(stats.maxSpeed)+' km/h'}`);
+    backFromExercise();
+    return;
+  }
+  evalRun();
+}
+
+function computeStats(data, dur) {
+  if (data.length === 0) return { duration:dur, maxSpeed:0, minLongG:0, maxLongG:0, maxLatGAbs:0, maxYawAbs:0, endSpeed:0, samples:0 };
+  return {
+    duration:dur,
+    maxSpeed:Math.max(...data.map(d=>d.speed)),
+    minLongG:Math.min(...data.map(d=>d.ax)),
+    maxLongG:Math.max(...data.map(d=>d.ax)),
+    maxLatGAbs:Math.max(...data.map(d=>Math.abs(d.ay))),
+    maxYawAbs:Math.max(...data.map(d=>Math.abs(d.yaw))),
+    endSpeed:data[data.length-1].speed,
+    samples:data.length
+  };
+}
+
+function simRun(q) {
+  const ex = EX.find(e=>e.id===state.currentEx);
+  const ref = state.session.references[ex.id] || (ex.refType==='time'?7.0:ex.refValue);
+  let dur, stats;
+  if (q === 'good') {
+    dur = ex.refType==='time' ? ref+1.5 : 7.0;
+    stats = {duration:dur, maxSpeed:ex.refType==='speed'?ex.refValue:50, minLongG:-1.0, maxLongG:0.4, maxLatGAbs:0.7, maxYawAbs:25, endSpeed:0, samples:200};
+  } else if (q === 'warn') {
+    dur = ex.refType==='time' ? ref+3.5 : 7.0;
+    stats = {duration:dur, maxSpeed:ex.refType==='speed'?ex.refValue-2:48, minLongG:-0.75, maxLongG:0.3, maxLatGAbs:0.5, maxYawAbs:20, endSpeed:0.5, samples:200};
+  } else {
+    dur = ex.refType==='time' ? ref+6.0 : 7.0;
+    stats = {duration:dur, maxSpeed:ex.refType==='speed'?ex.refValue-10:30, minLongG:-0.5, maxLongG:0.2, maxLatGAbs:0.3, maxYawAbs:15, endSpeed:5, samples:200};
+  }
+  if (state.mode === 'trainer') {
+    state.session.references[ex.id] = ex.refType==='time' ? dur : stats.maxSpeed;
+    save();
+    alert(`Referenz simuliert!\n${ex.refType==='time'?'Zeit: '+dur.toFixed(2)+' s':'Speed: '+Math.round(stats.maxSpeed)+' km/h'}`);
+    backFromExercise();
+    return;
+  }
+  state.currentRun = { duration:dur, stats, timestamp:Date.now() };
+  state.currentRun.simPylonFail = (q === 'bad');
+  evalRun();
+}
+
+function evalRun() {
+  const ex = EX.find(e=>e.id===state.currentEx);
+  const stats = state.currentRun.stats;
+  const ref = state.session.references[ex.id];
+  document.getElementById('evTitle').textContent = `Auswertung · ${ex.name}`;
+  const p = state.session.participants.find(x=>x.id===state.currentP);
+  document.getElementById('evSub').textContent = `${p.name} · Dauer: ${state.currentRun.duration.toFixed(2)}s · Max Speed: ${Math.round(stats.maxSpeed)} km/h`;
+  state.currentRun.evals = {};
+  ex.criteria.forEach(c => {
+    if (c.source === 'auto') state.currentRun.evals[c.id] = autoEval(c, ex, stats);
+    else if (c.source === 'time') state.currentRun.evals[c.id] = state.currentRun.duration <= ref + ex.tolerance;
+    else state.currentRun.evals[c.id] = null;
+  });
+  const need = ex.criteria.find(c=>c.source==='trainer');
+  if (need && state.currentRun.evals[need.id] === null) {
+    if (state.currentRun.simPylonFail !== undefined) {
+      // Demo mode: directly set
+      state.currentRun.pylonCount = state.currentRun.simPylonFail ? 1 : 0;
+      state.currentRun.evals[need.id] = !state.currentRun.simPylonFail;
+      document.getElementById('pylonBox').style.display = 'none';
+      finalizeEval();
+    } else {
+      // Real mode: mark as pending, save run with provisional grade, show notice
+      state.currentRun.pylonPending = true;
+      state.currentRun.evals[need.id] = true;  // provisional: assume passed, will be updated
+      finalizeEval(true);  // pass flag: pylonPending
+    }
+  } else {
+    document.getElementById('pylonBox').style.display = 'none';
+    finalizeEval();
+  }
+  showScreen('screen-eval');
+}
+
+function autoEval(c, ex, stats) {
+  if (c.id === 'stop') return stats.endSpeed < 1;
+  if (c.id === 'brakepoint') return stats.minLongG < -0.5;
+  if (c.id === 'entry_speed') {
+    if (ex.refValue === 160) return stats.maxSpeed >= 155;
+    if (ex.refValue === 70) return stats.maxSpeed >= 67 && stats.maxSpeed <= 73;
+    return true;
+  }
+  if (c.id === 'full_brake') return stats.minLongG <= -0.7 && stats.endSpeed < 1;
+  if (c.id === 'target_zone') return stats.endSpeed < 30;
+  return true;
+}
+
+function setPylonCount(count) {
+  // Save count for later display
+  state.currentRun.pylonCount = count;
+  // Convert to pass/fail: 0 pylons = passed, >= 1 = failed
+  state.currentRun.evals[state.pendingPylon] = (count === 0);
+  document.getElementById('pylonBox').style.display = 'none';
+  finalizeEval();
+}
+
+function finalizeEval(pylonPending) {
+  const ex = EX.find(e=>e.id===state.currentEx);
+  const evals = state.currentRun.evals;
+  let sw=0, sf=0, ko=false;
+  ex.criteria.forEach(c => {
+    const passed = evals[c.id];
+    const note = passed ? c.pass : c.fail;
+    let f = 1;
+    if (c.weight === 'std') f = 1;
+    if (c.weight === 'bns') f = 3;
+    if (c.weight === 'ko') { f = 1; if (!passed) ko = true; }
+    sw += note * f; sf += f;
+  });
+  const grade = ko ? 5.0 : sw/sf;
+  state.currentRun.grade = grade;
+  state.currentRun.exerciseId = ex.id;
+  const p = state.session.participants.find(x=>x.id===state.currentP);
+  if (!p.runs[ex.id]) p.runs[ex.id] = [];
+  p.runs[ex.id].push(state.currentRun);
+  save();
+  const rg = document.getElementById('resGrade');
+  rg.className = 'result-grade';
+  if (pylonPending) {
+    rg.style.borderColor = '#ffb800';
+    rg.style.background = '#1f1808';
+    document.getElementById('resValue').textContent = grade.toFixed(1) + '*';
+    document.getElementById('resStatus').textContent = '⚠ Vorläufig · Trainer-Eingabe ausstehend';
+  } else {
+    rg.style.borderColor = '';
+    rg.style.background = '';
+    if (grade >= 4.5) rg.classList.add('fail');
+    else if (grade >= 3.5) rg.classList.add('warn');
+    document.getElementById('resValue').textContent = grade.toFixed(1);
+    document.getElementById('resStatus').textContent =
+      grade >= 4.5 ? '✗ Nicht bestanden' :
+      grade >= 3.5 ? '~ Knapp bestanden' :
+      grade >= 2.5 ? '✓ Bestanden' :
+      grade >= 1.5 ? '✓ Gut' : '✓ Sehr gut';
+  }
+  const list = document.getElementById('critList');
+  list.innerHTML = '';
+  ex.criteria.forEach(c => {
+    const passed = evals[c.id];
+    const note = passed ? c.pass : c.fail;
+    let wt='std', wl='Standard 1×';
+    if (c.weight === 'bns') { wt='bns'; wl='Bonus 3×'; }
+    if (c.weight === 'ko') { wt='ko'; wl='K.O.'; }
+    const isPyl = c.source === 'trainer';
+    const item = document.createElement('div');
+    item.className = 'criterion-item';
+    const symbol = isPyl && pylonPending ? '?' : (passed?'✓':'✗');
+    const symCls = isPyl && pylonPending ? '' : (passed?'pass':'fail');
+    const meta = isPyl && pylonPending 
+      ? 'Trainer-Eingabe ausstehend' 
+      : `Note: ${note.toFixed(1)} · ${c.source==='auto'?'Sensor':c.source==='time'?'Zeit':'Trainer'}`;
+    item.innerHTML = `<div class="criterion-checkbox ${symCls}" style="${isPyl && pylonPending ? 'border-color: #ffb800; color: #ffb800;' : ''}">${symbol}</div><div class="criterion-info"><div class="criterion-name">${c.name}</div><div class="criterion-meta">${meta}</div></div><div class="criterion-weight ${wt}">${wl}</div>`;
+    list.appendChild(item);
+  });
+  document.getElementById('evResult').style.display = 'block';
+}
+
+function continueEval() { backFromExercise(); }
+
+function showOverview() {
+  if (!state.session) return;
+  document.getElementById('ovSub').textContent = `${state.session.location} · ${state.session.date} · Trainer: ${state.session.trainer}`;
+  const c = document.getElementById('ovContent');
+  c.innerHTML = '';
+  const rb = document.createElement('div');
+  rb.className = 'info-box purple';
+  let rh = '<strong>Trainer-Referenzen</strong><br>';
+  EX.forEach(ex => {
+    const r = state.session.references[ex.id];
+    rh += `<span class="chip">${ex.name}: ${r!=null?(ex.refType==='time'?r.toFixed(2)+'s':Math.round(r)+' km/h'):'—'}</span>`;
+  });
+  rb.innerHTML = rh;
+  c.appendChild(rb);
+  const t = document.createElement('div');
+  t.className = 'overview-table';
+  const h = document.createElement('div');
+  h.className = 'overview-row header';
+  h.innerHTML = `<div>Teilnehmer</div>${EX.map(e=>`<div style="text-align:center;">${e.num}</div>`).join('')}<div style="text-align:center;">Ø</div>`;
+  t.appendChild(h);
+  state.session.participants.forEach(p => {
+    const row = document.createElement('div');
+    row.className = 'overview-row';
+    let cells = `<div class="overview-name">${p.name}</div>`;
+    let sum=0, cnt=0, fail=false;
+    EX.forEach(ex => {
+      const runs = (p.runs && p.runs[ex.id]) || [];
+      if (runs.length === 0) cells += '<div class="overview-cell empty">—</div>';
+      else {
+        const best = Math.min(...runs.map(r=>r.grade));
+        let cls='good';
+        if (best >= 4.5) { cls='bad'; fail=true; }
+        else if (best >= 3.5) cls='warn';
+        cells += `<div class="overview-cell ${cls}">${best.toFixed(1)}</div>`;
+        sum += best; cnt++;
+      }
+    });
+    if (cnt === 0) cells += '<div class="overview-cell empty">—</div>';
+    else if (fail) cells += '<div class="overview-cell bad">FAIL</div>';
+    else {
+      const avg = sum/cnt;
+      let cls = avg >= 3.5 ? 'warn' : 'good';
+      cells += `<div class="overview-cell ${cls}">${avg.toFixed(2)}</div>`;
+    }
+    row.innerHTML = cells;
+    t.appendChild(row);
+  });
+  c.appendChild(t);
+  state.session.participants.forEach(p => {
+    const card = document.createElement('div');
+    card.className = 'info-box';
+    let html = `<strong>${p.name}</strong> (Nr. ${p.num})<br>`;
+    let any = false;
+    EX.forEach(ex => {
+      const runs = (p.runs && p.runs[ex.id]) || [];
+      if (runs.length > 0) {
+        any = true;
+        const gs = runs.map(r=>r.grade.toFixed(1)).join(', ');
+        const best = Math.min(...runs.map(r=>r.grade)).toFixed(1);
+        html += `<div style="margin-top:4px;">${ex.name}: ${runs.length} Durchläufe (${gs}) · Beste: <strong>${best}</strong></div>`;
+      }
+    });
+    if (!any) html += '<div style="margin-top:4px; color:#555f6e;">Noch keine Durchläufe</div>';
+    card.innerHTML = html;
+    c.appendChild(card);
+  });
+  showScreen('screen-overview');
+}
+
+function exportJSON() {
+  const json = JSON.stringify(state.session, null, 2);
+  const blob = new Blob([json], {type:'application/json'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `driverai-${state.session.date}-${state.session.location.replace(/\s/g,'_')}.json`;
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+function confirmReset() {
+  if (confirm('Session wirklich löschen? Alle Daten gehen verloren!')) {
+    localStorage.removeItem('driverai_session');
+    state.session = null;
+    showScreen('screen-home');
+    refreshHome();
+  }
+}
+
+// ============================================================================
+// DEMO-MODE QUICK-FILL HELPERS
+// ============================================================================
+function fillDummyRefs() {
+  if (!state.session) return;
+  if (!confirm('Alle 4 Übungen mit realistischen Dummy-Referenzwerten füllen?')) return;
+  state.session.references = {
+    slalom: 7.20,        // 7.20 Sekunden Referenzzeit
+    hsb: 162,            // 162 km/h Eintrittsspeed (trocken)
+    lc: 71,              // 71 km/h Spurwechsel
+    ba: 70               // 70 km/h Bremsen und Ausweichen
+  };
+  save();
+  alert('Dummy-Referenzen gesetzt:\n\n• Slalom: 7.20 s\n• Highspeed: 162 km/h\n• Spurwechsel: 71 km/h\n• Brems+Ausweichen: 70 km/h\n\nDer Teilnehmer-Modus ist jetzt freigeschaltet!');
+  enterDashboard();
+}
+
+function fillDummyRuns() {
+  if (!state.session) return;
+  if (Object.keys(state.session.references).length === 0) {
+    alert('Bitte zuerst Trainer-Referenzen setzen!');
+    return;
+  }
+  if (!confirm(`Für alle ${state.session.participants.length} Teilnehmer einen Durchlauf pro Übung simulieren?`)) return;
+
+  const qualities = ['good', 'good', 'warn', 'warn', 'bad'];
+  state.session.participants.forEach((p, idx) => {
+    EX.forEach(ex => {
+      const q = qualities[(idx + EX.indexOf(ex)) % qualities.length];
+      const ref = state.session.references[ex.id];
+      let dur, stats;
+      if (q === 'good') {
+        dur = ex.refType === 'time' ? ref + 1.5 : 7.0;
+        stats = {duration: dur, maxSpeed: ex.refType === 'speed' ? ex.refValue : 50, minLongG: -1.0, maxLongG: 0.4, maxLatGAbs: 0.7, maxYawAbs: 25, endSpeed: 0, samples: 200};
+      } else if (q === 'warn') {
+        dur = ex.refType === 'time' ? ref + 3.5 : 7.0;
+        stats = {duration: dur, maxSpeed: ex.refType === 'speed' ? ex.refValue - 2 : 48, minLongG: -0.75, maxLongG: 0.3, maxLatGAbs: 0.5, maxYawAbs: 20, endSpeed: 0.5, samples: 200};
+      } else {
+        dur = ex.refType === 'time' ? ref + 6.0 : 7.0;
+        stats = {duration: dur, maxSpeed: ex.refType === 'speed' ? ex.refValue - 10 : 30, minLongG: -0.5, maxLongG: 0.2, maxLatGAbs: 0.3, maxYawAbs: 15, endSpeed: 5, samples: 200};
+      }
+
+      // Evaluate criteria
+      const evals = {};
+      let sw = 0, sf = 0, ko = false;
+      ex.criteria.forEach(c => {
+        let passed;
+        if (c.source === 'auto') passed = autoEval(c, ex, stats);
+        else if (c.source === 'time') passed = dur <= ref + ex.tolerance;
+        else passed = (q !== 'bad');  // pylons: fail only on bad
+        evals[c.id] = passed;
+        const note = passed ? c.pass : c.fail;
+        let f = c.weight === 'bns' ? 3 : 1;
+        if (c.weight === 'ko' && !passed) ko = true;
+        sw += note * f; sf += f;
+      });
+      const grade = ko ? 5.0 : sw / sf;
+
+      if (!p.runs[ex.id]) p.runs[ex.id] = [];
+      p.runs[ex.id].push({
+        duration: dur,
+        stats: stats,
+        evals: evals,
+        grade: grade,
+        exerciseId: ex.id,
+        timestamp: Date.now()
+      });
+    });
+  });
+  save();
+  alert(`Fertig! Für jeden Teilnehmer wurde 1 Durchlauf pro Übung simuliert.\nGehe zu "Übersicht" um die Tabelle zu sehen.`);
+  enterDashboard();
+}
+
+load();
+</script>
+
+</body>
+</html>
