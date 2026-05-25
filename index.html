@@ -817,8 +817,7 @@ html, body { background: #0a0d12; color: #e8edf2; font-family: -apple-system, Bl
   <!-- ============================================================ -->
   <div style="margin-top: 18px;">
     <div style="font-size: 10px; letter-spacing: 0.2em; color: #8b95a3; font-family: 'Menlo', monospace; margin-bottom: 8px;">▸ PHASE 2 — WÄHREND DES TRAININGS</div>
-    <button class="btn secondary" onclick="showQRShareRefs()" style="margin-bottom: 6px;">📤 Referenzen an Teilnehmer verteilen</button>
-    <button class="btn green" id="participantBtn" onclick="enterParticipantMode()">▶ Teilnehmer-Modus (Backup-Gerät)</button>
+    <button class="btn" onclick="showQRShareRefs()">📤 Referenzen an Teilnehmer verteilen</button>
   </div>
 
   <!-- ============================================================ -->
@@ -1762,17 +1761,14 @@ function enterDashboard() {
     rs.classList.add('green');
     document.getElementById('refStatusTitle').textContent = '✓ Alle Referenzen aufgezeichnet';
     document.getElementById('refStatusText').textContent = 'Teilnehmer können jetzt fahren.';
-    document.getElementById('participantBtn').disabled = false;
   } else if (refsCount === 0) {
     rs.classList.add('warn');
     document.getElementById('refStatusTitle').textContent = '⚠ Noch keine Referenzen';
     document.getElementById('refStatusText').textContent = 'Bevor Teilnehmer fahren können, jede Übung als Referenz fahren.';
-    document.getElementById('participantBtn').disabled = true;
   } else {
     rs.classList.add('warn');
     document.getElementById('refStatusTitle').textContent = `⚠ ${refsCount} von ${EX.length} Referenzen`;
     document.getElementById('refStatusText').textContent = 'Teilnehmer können Übungen mit Referenz fahren.';
-    document.getElementById('participantBtn').disabled = false;
   }
   showScreen('screen-dashboard');
 }
