@@ -215,6 +215,17 @@ html, body { background: #0a0d12; color: #e8edf2; font-family: -apple-system, Bl
     </div>
   </div>
 
+  <div class="card pending" id="participantSendCard" style="display:none;" onclick="showQRShareResults()">
+    <div class="card-row">
+      <div class="card-info">
+        <div class="card-num">FERTIG MIT TRAINING?</div>
+        <div class="card-title">Ergebnisse an Trainer senden</div>
+        <div class="card-meta">Per QR-Code · Trainer scannt dein Smartphone</div>
+      </div>
+      <div class="card-arrow">›</div>
+    </div>
+  </div>
+
   <div class="card pending" onclick="startQRScanRefs()">
     <div class="card-row">
       <div class="card-info">
@@ -381,6 +392,23 @@ html, body { background: #0a0d12; color: #e8edf2; font-family: -apple-system, Bl
   <div class="screen-title" id="evTitle">Auswertung</div>
   <div class="screen-sub" id="evSub">—</div>
 
+  <!-- TEILNEHMER-MODUS: nur Bestätigung, keine Bewertung -->
+  <div id="evParticipantResult" style="display: none;">
+    <div style="background: #00a86b; padding: 32px 20px; margin: 20px 0; text-align: center; border-left: 4px solid #00ff88;">
+      <div style="font-size: 64px; color: white; font-weight: bold;">✓</div>
+      <div style="font-size: 24px; color: white; font-weight: bold; margin-top: 12px;">Durchlauf gespeichert</div>
+      <div style="font-size: 13px; color: rgba(255,255,255,0.85); margin-top: 8px; font-family: 'Menlo', monospace; letter-spacing: 0.1em;">AUFZEICHNUNG ABGESCHLOSSEN</div>
+    </div>
+    <div style="background: #11151c; padding: 16px; border: 1px solid #232a35; margin-bottom: 14px;">
+      <div style="font-size: 11px; color: #8b95a3; font-family: 'Menlo', monospace; letter-spacing: 0.1em; margin-bottom: 4px;">▸ INFO</div>
+      <div style="color: #c0c8d4; font-size: 13px; line-height: 1.5;">
+        Die Bewertung erfolgt durch den Trainer nach dem Training.<br>
+        Du bekommst dein Ergebnis später vom Trainer.
+      </div>
+    </div>
+    <button class="btn" onclick="continueEval()" style="margin-top: 8px;">Weiter</button>
+  </div>
+
   <div class="pylon-input" id="pylonBox" style="display:none;">
     <div class="label">◤ Trainer-Eingabe nötig</div>
     <div class="question" id="pylonQ">Wie viele Pylonen sind umgefallen?</div>
@@ -440,22 +468,30 @@ html, body { background: #0a0d12; color: #e8edf2; font-family: -apple-system, Bl
 <!-- QR SHARE: Trainer zeigt Referenzen -->
 <div class="screen" id="screen-qr-share-refs">
   <button class="back-btn" onclick="showScreen('screen-dashboard')">‹ Zurück</button>
-  <div class="screen-title">Referenzen teilen</div>
-  <div class="screen-sub">Teilnehmer scannen den QR-Code mit ihrer App</div>
+  <div class="screen-title">Referenzen an Teilnehmer verteilen</div>
+  <div class="screen-sub" id="qrRefsParticipantSub">—</div>
   
   <div class="info-box">
-    <strong>◆ Anleitung für Teilnehmer</strong><br>
-    1. App öffnen<br>
-    2. "QR-Code scannen" wählen<br>
-    3. Diesen Code scannen
+    <strong>◆ Anleitung</strong><br>
+    Jeder Teilnehmer bekommt seinen eigenen QR-Code.<br>
+    Zeigen Sie ihm seinen Code persönlich – er scannt mit der App auf seinem Smartphone.
   </div>
   
-  <div id="qrRefsContainer" style="background: white; padding: 24px; margin: 16px 0; display: flex; flex-direction: column; align-items: center; border: 1px solid #232a35;">
-    <div id="qrRefsCanvas"></div>
-    <div id="qrRefsInfo" style="color: #1a2230; font-size: 11px; margin-top: 12px; font-family: 'Menlo', monospace; letter-spacing: 0.05em;">—</div>
-  </div>
+  <div id="qrRefsParticipantList" style="margin-top: 12px;"></div>
   
-  <button class="btn secondary" onclick="generateRefsQR()">↻ QR-Code neu generieren</button>
+  <div id="qrRefsActiveContainer" style="display: none;">
+    <div style="margin-top: 14px; padding: 14px; background: #11151c; border-left: 4px solid #00ff88; border: 1px solid #232a35;">
+      <div style="font-size: 11px; color: #00ff88; font-family: 'Menlo', monospace; letter-spacing: 0.15em;">▸ QR-CODE FÜR</div>
+      <div id="qrRefsActiveName" style="font-size: 18px; color: white; font-weight: bold; margin-top: 4px;">—</div>
+    </div>
+    
+    <div id="qrRefsContainer" style="background: white; padding: 24px; margin: 16px 0; display: flex; flex-direction: column; align-items: center; border: 1px solid #232a35;">
+      <div id="qrRefsCanvas"></div>
+      <div id="qrRefsInfo" style="color: #1a2230; font-size: 11px; margin-top: 12px; font-family: 'Menlo', monospace; letter-spacing: 0.05em;">—</div>
+    </div>
+    
+    <button class="btn secondary" onclick="hideActiveRefsQR()">‹ Zurück zur Liste</button>
+  </div>
 </div>
 
 <!-- QR SCAN: Teilnehmer empfängt Referenzen -->
@@ -840,14 +876,28 @@ function refreshHome() {
     const progName = (PROGRAMS[state.session.program] || PROGRAMS.basis).name;
     document.getElementById('sessionBanner').style.display='block';
     document.getElementById('continueCard').style.display='block';
-    document.getElementById('overviewCard').style.display='block';
-    document.getElementById('bannerTitle').textContent = state.session.location;
-    document.getElementById('bannerMeta').textContent = `${progName} · ${state.session.date} · ${state.session.participants.length} Teilnehmer`;
-    document.getElementById('continueMeta').textContent = `${state.session.location} · ${state.session.date}`;
+    
+    if (state.session.participantMode) {
+      // PARTICIPANT MODE: hide overview, show personalized info
+      const p = state.session.participants.find(x => x.id === state.session.assignedParticipantId);
+      const myName = p ? p.name : 'Teilnehmer';
+      document.getElementById('overviewCard').style.display='none';
+      document.getElementById('participantSendCard').style.display='block';
+      document.getElementById('bannerTitle').textContent = myName;
+      document.getElementById('bannerMeta').textContent = `${progName} · ${state.session.location} · ${state.session.date}`;
+      document.getElementById('continueMeta').textContent = 'Zu meinen Übungen';
+    } else {
+      document.getElementById('overviewCard').style.display='block';
+      document.getElementById('participantSendCard').style.display='none';
+      document.getElementById('bannerTitle').textContent = state.session.location;
+      document.getElementById('bannerMeta').textContent = `${progName} · ${state.session.date} · ${state.session.participants.length} Teilnehmer`;
+      document.getElementById('continueMeta').textContent = `${state.session.location} · ${state.session.date}`;
+    }
   } else {
     document.getElementById('sessionBanner').style.display='none';
     document.getElementById('continueCard').style.display='none';
     document.getElementById('overviewCard').style.display='none';
+    document.getElementById('participantSendCard').style.display='none';
   }
 }
 
@@ -889,6 +939,13 @@ function createSession() {
 
 function enterDashboard() {
   if (!state.session) return;
+  
+  // PARTICIPANT MODE: never show dashboard - go directly to exercises
+  if (state.session.participantMode) {
+    enterParticipantApp();
+    return;
+  }
+  
   document.getElementById('dashTitle').textContent = state.session.location;
   document.getElementById('dashMeta').textContent = `${state.session.date} · Trainer: ${state.session.trainer}`;
   const progName = (PROGRAMS[state.session.program] || PROGRAMS.basis).name;
@@ -932,6 +989,16 @@ function enterTrainerMode() {
 
 function enterParticipantMode() {
   state.mode = 'participant';
+  
+  // PARTICIPANT-MODE: skip selection screen, go directly to own exercises
+  if (state.session.participantMode) {
+    const p = state.session.participants.find(x => x.id === state.session.assignedParticipantId);
+    if (p) {
+      selectP(p.id);
+      return;
+    }
+  }
+  
   const list = document.getElementById('pSelectList');
   list.innerHTML = '';
   state.session.participants.forEach(p => {
@@ -952,10 +1019,20 @@ function selectP(pid) {
   state.currentP = pid;
   const p = state.session.participants.find(x=>x.id===pid);
   document.getElementById('exTitle').textContent = p.name;
-  document.getElementById('exSub').textContent = `Teilnehmer Nr. ${p.num}`;
-  document.getElementById('exBanner').className = 'info-box';
-  document.getElementById('exBannerTitle').textContent = '▶ Teilnehmer-Modus';
-  document.getElementById('exBannerText').textContent = 'Wähle eine Übung. Bewertung erfolgt automatisch gegen Trainer-Referenz.';
+  
+  if (state.session.participantMode) {
+    // Participant view: emphasize privacy
+    const progName = (PROGRAMS[state.session.program] || PROGRAMS.basis).name;
+    document.getElementById('exSub').textContent = progName + ' · ' + state.session.trainer;
+    document.getElementById('exBanner').className = 'info-box';
+    document.getElementById('exBannerTitle').textContent = '▶ Deine Übungen';
+    document.getElementById('exBannerText').textContent = 'Wähle eine Übung. Bewertung erfolgt nach dem Training durch den Trainer.';
+  } else {
+    document.getElementById('exSub').textContent = `Teilnehmer Nr. ${p.num}`;
+    document.getElementById('exBanner').className = 'info-box';
+    document.getElementById('exBannerTitle').textContent = '▶ Teilnehmer-Modus';
+    document.getElementById('exBannerText').textContent = 'Wähle eine Übung. Bewertung erfolgt automatisch gegen Trainer-Referenz.';
+  }
   renderExCards();
   showScreen('screen-exercises');
 }
@@ -1171,25 +1248,49 @@ function renderExCards() {
       const p = state.session.participants.find(x=>x.id===state.currentP);
       const runs = (p.runs && p.runs[ex.id]) || [];
       pendingPylons = runs.filter(r => isTrainerPending(r)).length;
-      if (runs.length > 0) {
-        if (pendingPylons > 0) {
-          cls='in-progress';
-          lbl=`${pendingPylons} ⚠ Eingabe nötig`;
+      
+      if (state.session.participantMode) {
+        // PARTICIPANT MODE: show only count, hide grades and pending warnings
+        if (runs.length > 0) {
+          cls = 'done';
+          lbl = `✓ ${runs.length} ${runs.length === 1 ? 'Durchlauf' : 'Durchläufe'}`;
+          meta = 'Aufgezeichnet';
+        } else if (state.session.references[ex.id] == null) {
+          lbl = 'Wartet auf Trainer';
+          meta = 'Referenz noch nicht da';
         } else {
-          cls='done';
-          lbl=`${runs.length} Durchlauf${runs.length>1?'e':''}`;
+          meta = 'Tippen um Übung zu fahren';
         }
-        const best = Math.min(...runs.map(r=>r.grade));
-        meta = `Beste Note: ${best.toFixed(1)}${pendingPylons > 0 ? ' (vorläufig)' : ''}`;
-      } else if (state.session.references[ex.id] == null) {
-        lbl='Referenz fehlt!'; meta='Trainer muss erst Referenz fahren';
+      } else {
+        // TRAINER's normal participant view: show grades
+        if (runs.length > 0) {
+          if (pendingPylons > 0) {
+            cls='in-progress';
+            lbl=`${pendingPylons} ⚠ Eingabe nötig`;
+          } else {
+            cls='done';
+            lbl=`${runs.length} Durchlauf${runs.length>1?'e':''}`;
+          }
+          const best = Math.min(...runs.map(r=>r.grade));
+          meta = `Beste Note: ${best.toFixed(1)}${pendingPylons > 0 ? ' (vorläufig)' : ''}`;
+        } else if (state.session.references[ex.id] == null) {
+          lbl='Referenz fehlt!'; meta='Trainer muss erst Referenz fahren';
+        }
       }
     }
     const card = document.createElement('div');
     card.className = 'card ' + cls;
     
-    // Special click behavior: if trainer inputs pending, offer to review them
-    if (pendingPylons > 0) {
+    // In participant mode: simple click, no review dialog
+    if (state.session.participantMode) {
+      // Block click if no reference yet
+      if (state.session.references[ex.id] == null) {
+        card.style.opacity = '0.5';
+        card.style.pointerEvents = 'none';
+      } else {
+        card.onclick = () => openEx(ex.id);
+      }
+    } else if (pendingPylons > 0) {
       card.onclick = () => {
         if (confirm(`${pendingPylons} Durchlauf${pendingPylons>1?'läufe':''} warten auf Trainer-Eingabe.\n\n[OK] = Trainer-Eingabe öffnen\n[Abbrechen] = Übung normal öffnen (neuer Durchlauf)`)) {
           openPylonReview(state.currentP, ex.id);
@@ -1207,6 +1308,10 @@ function renderExCards() {
 }
 
 function backExercises() {
+  if (state.session && state.session.participantMode) {
+    showScreen('screen-home');
+    return;
+  }
   if (state.mode === 'trainer') showScreen('screen-dashboard');
   else showScreen('screen-pselect');
 }
@@ -1432,6 +1537,38 @@ function evalRun() {
     else state.currentRun.evals[c.id] = null;  // trainer or trainer-3
   });
   
+  // ============================================================
+  // PARTICIPANT MODE: Skip all evaluation display
+  // Just save the run, show success screen, hide grades
+  // ============================================================
+  if (state.session.participantMode) {
+    // Save run with raw data only, no evaluation shown
+    state.currentRun.trainerPending = true;  // trainer evaluates later
+    state.currentRun.pylonPending = ex.criteria.some(c => c.source === 'trainer');
+    state.currentRun.grade = 0;  // No grade computed
+    state.currentRun.exerciseId = ex.id;
+    
+    // Mark all trainer-input criteria as null (not evaluated yet)
+    ex.criteria.forEach(c => {
+      if (c.source === 'trainer' || c.source === 'trainer-3') {
+        state.currentRun.evals[c.id] = null;
+      }
+    });
+    
+    if (!p.runs[ex.id]) p.runs[ex.id] = [];
+    p.runs[ex.id].push(state.currentRun);
+    save();
+    
+    // Show only success screen
+    document.getElementById('evTitle').textContent = ex.name;
+    document.getElementById('evSub').textContent = 'Durchlauf abgeschlossen';
+    document.getElementById('pylonBox').style.display = 'none';
+    document.getElementById('evResult').style.display = 'none';
+    document.getElementById('evParticipantResult').style.display = 'block';
+    showScreen('screen-eval');
+    return;
+  }
+  
   // Find ALL trainer-input criteria that are pending
   const pendingCriteria = ex.criteria.filter(c => 
     (c.source === 'trainer' || c.source === 'trainer-3') && state.currentRun.evals[c.id] === null
@@ -1637,10 +1774,22 @@ function finalizeEval(pylonPending) {
   document.getElementById('evResult').style.display = 'block';
 }
 
-function continueEval() { backFromExercise(); }
+function continueEval() { 
+  document.getElementById('evParticipantResult').style.display = 'none';
+  document.getElementById('evResult').style.display = 'none';
+  document.getElementById('pylonBox').style.display = 'none';
+  backFromExercise(); 
+}
 
 function showOverview() {
   if (!state.session) return;
+  
+  // PARTICIPANT MODE: no overview access
+  if (state.session.participantMode) {
+    alert('Diese Funktion ist nur für den Trainer.\n\nDeine Ergebnisse bekommst du nach dem Training.');
+    return;
+  }
+  
   document.getElementById('ovSub').textContent = `${state.session.location} · ${state.session.date} · Trainer: ${state.session.trainer}`;
   const c = document.getElementById('ovContent');
   c.innerHTML = '';
@@ -2480,19 +2629,65 @@ function showQRShareRefs() {
   if (!state.session) { alert('Bitte zuerst eine Session anlegen.'); return; }
   const refCount = Object.keys(state.session.references).length;
   if (refCount === 0) { alert('Bitte zuerst Trainer-Referenzen aufzeichnen.'); return; }
+  
   showScreen('screen-qr-share-refs');
-  setTimeout(generateRefsQR, 100);
+  document.getElementById('qrRefsActiveContainer').style.display = 'none';
+  document.getElementById('qrRefsParticipantList').style.display = 'block';
+  
+  document.getElementById('qrRefsParticipantSub').textContent = 
+    `${state.session.participants.length} Teilnehmer · 1 QR-Code pro Person`;
+  
+  renderQRRefsList();
 }
 
-function generateRefsQR() {
+function renderQRRefsList() {
+  const list = document.getElementById('qrRefsParticipantList');
+  list.innerHTML = '';
+  state.session.participants.forEach((p, i) => {
+    const div = document.createElement('div');
+    div.className = 'card pending';
+    div.style.cursor = 'pointer';
+    div.onclick = () => showActiveRefsQR(p);
+    div.innerHTML = `
+      <div class="card-row">
+        <div class="card-info">
+          <div class="card-num">TEILNEHMER ${i + 1}</div>
+          <div class="card-title">${p.name}</div>
+          <div class="card-meta">Tippen um QR-Code anzuzeigen</div>
+        </div>
+        <div class="card-arrow">›</div>
+      </div>`;
+    list.appendChild(div);
+  });
+}
+
+function showActiveRefsQR(participant) {
+  document.getElementById('qrRefsParticipantList').style.display = 'none';
+  document.getElementById('qrRefsActiveContainer').style.display = 'block';
+  document.getElementById('qrRefsActiveName').textContent = participant.name;
+  
+  setTimeout(() => generateRefsQR(participant), 50);
+}
+
+function hideActiveRefsQR() {
+  document.getElementById('qrRefsActiveContainer').style.display = 'none';
+  document.getElementById('qrRefsParticipantList').style.display = 'block';
+}
+
+function generateRefsQR(targetParticipant) {
   if (!window.QRCode) { alert('QR-Code-Library noch nicht geladen.'); return; }
   
+  // Personalized payload: ONLY the target participant's info
   const payload = {
-    t: 'refs', v: 1,
-    s: state.session.id, d: state.session.date, l: state.session.location,
-    tr: state.session.trainer, p: state.session.program,
+    t: 'refs', v: 2,
+    s: state.session.id,
+    d: state.session.date,
+    l: state.session.location,
+    tr: state.session.trainer,
+    p: state.session.program,
     r: state.session.references,
-    ps: state.session.participants.map(p => ({id: p.id, n: p.name}))
+    // Only THIS participant, not the whole list!
+    me: { id: targetParticipant.id, n: targetParticipant.name }
   };
   
   const json = JSON.stringify(payload);
@@ -2506,7 +2701,7 @@ function generateRefsQR() {
     if (err) { container.innerHTML = '<div style="color:#c82e4e;">Fehler: ' + err.message + '</div>'; return; }
     container.appendChild(canvas);
     document.getElementById('qrRefsInfo').textContent = 
-      `${state.session.location} · ${state.session.participants.length} TN · ${Object.keys(state.session.references).length} REFS · ${json.length} BYTES`;
+      `${state.session.location} · NUR FÜR ${targetParticipant.name.toUpperCase()} · ${json.length} BYTES`;
   });
 }
 
@@ -2557,25 +2752,64 @@ function onScanRefsSuccess(decoded) {
       return;
     }
     stopQRScanner();
+    
+    // V2: Personalized QR codes contain only "me" (single participant)
+    // V1: Backward compat - old codes had "ps" array
+    let assignedId, assignedName, participants;
+    
+    if (payload.me) {
+      // Participant mode: only see yourself
+      assignedId = payload.me.id;
+      assignedName = payload.me.n;
+      participants = [{ id: payload.me.id, name: payload.me.n, runs: {} }];
+    } else if (payload.ps) {
+      // Old format: full participant list (legacy)
+      participants = payload.ps.map(p => ({id: p.id, name: p.n, runs: {}}));
+      assignedId = participants[0].id;
+      assignedName = participants[0].name;
+    }
+    
     state.session = {
       id: payload.s, date: payload.d, location: payload.l, trainer: payload.tr,
       program: payload.p, email: '', references: payload.r,
-      participants: payload.ps.map(p => ({id: p.id, name: p.n, runs: {}})),
-      createdAt: Date.now(), fromTrainerQR: true
+      participants: participants,
+      createdAt: Date.now(),
+      participantMode: true,        // NEW: lock to participant view
+      assignedParticipantId: assignedId,
+      fromTrainerQR: true
     };
     save();
+    
     document.getElementById('qrScanStatus').textContent = 
-      `✓ Empfangen! ${state.session.location} · ${state.session.participants.length} Teilnehmer`;
+      `✓ Empfangen! Hallo ${assignedName}`;
     document.getElementById('qrScanStatus').style.color = '#00ff88';
+    
     setTimeout(() => {
-      alert('Referenzen empfangen!\n\nSession: ' + state.session.location + '\nProgramm: ' + (PROGRAMS[state.session.program] || PROGRAMS.basis).name + '\n\nJetzt: Teilnehmer auswählen und Übungen fahren.');
+      const progName = (PROGRAMS[state.session.program] || PROGRAMS.basis).name;
+      alert(
+        `Willkommen ${assignedName}!\n\n` +
+        `Programm: ${progName}\n` +
+        `Trainer: ${state.session.trainer}\n` +
+        `Ort: ${state.session.location}\n\n` +
+        `Jetzt: Übungen fahren wenn der Trainer dich aufruft.\n\n` +
+        `Hinweis: Die App zeigt KEINE Bewertung – die bekommst du später vom Trainer.`
+      );
       refreshHome();
-      enterDashboard();
+      enterParticipantApp();
     }, 600);
   } catch(e) {
     document.getElementById('qrScanStatus').textContent = 'Ungültiger QR-Code: ' + e.message;
     document.getElementById('qrScanStatus').style.color = '#c82e4e';
   }
+}
+
+// Enter the participant-only app view
+function enterParticipantApp() {
+  state.mode = 'participant';
+  state.currentP = state.session.assignedParticipantId;
+  // Skip dashboard, skip participant selection - go directly to exercises
+  showScreen('screen-exercises');
+  enterParticipantMode();
 }
 
 function showQRShareResults() {
