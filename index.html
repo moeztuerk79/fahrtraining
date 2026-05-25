@@ -5,6 +5,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <title>Driver.AI — Fahrtraining</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.1/jspdf.plugin.autotable.min.js"></script>
 <style>
 * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
 html, body { background: #0a0d12; color: #e8edf2; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; min-height: 100vh; overscroll-behavior: none; }
@@ -48,6 +50,8 @@ html, body { background: #0a0d12; color: #e8edf2; font-family: -apple-system, Bl
 .btn.green:active { background: #00cc6e; }
 .btn.red { background: #ff2e4e; }
 .btn.red:active { background: #cc1f3a; }
+.btn.yellow { background: #ffb800; color: #06080c; }
+.btn.yellow:active { background: #cc9300; }
 .btn.large { padding: 22px 18px; font-size: 16px; }
 .btn.small { padding: 12px; font-size: 11px; }
 .btn:disabled { background: #2f3845; color: #555f6e; cursor: not-allowed; }
@@ -229,9 +233,17 @@ html, body { background: #0a0d12; color: #e8edf2; font-family: -apple-system, Bl
     <input type="text" class="form-input" id="fTrainer" placeholder="Vor- und Nachname">
   </div>
   <div class="form-field">
+    <div class="form-label">Email für PDF-Versand <span style="color:#8b95a3; font-size:11px; font-weight:normal;">(optional)</span></div>
+    <input type="email" class="form-input" id="fEmail" placeholder="z.B. trainer@fahrschule.de">
+  </div>
+  <div class="form-field">
     <div class="form-label">Trainings-Programm</div>
     <select class="form-input" id="fProgram">
       <option value="basis">Basistraining (4 Übungen)</option>
+      <option value="hoch">Hochleistungstraining (4 Übungen)</option>
+      <option value="dyn">Hochdynamiktraining (4 Übungen)</option>
+      <option value="super">Supersporttraining (4 Übungen)</option>
+      <option value="track">Rundstreckentraining (4 Übungen)</option>
     </select>
   </div>
   <div class="form-field">
@@ -389,6 +401,14 @@ html, body { background: #0a0d12; color: #e8edf2; font-family: -apple-system, Bl
   <div class="screen-title">Übersicht</div>
   <div class="screen-sub" id="ovSub">Alle Teilnehmer und Ergebnisse</div>
   <div id="ovContent"></div>
+  
+  <div style="margin-top: 18px; padding: 14px; background: #11151c; border: 1px solid #232a35; border-left: 4px solid #ff4500;">
+    <div style="font-size: 11px; letter-spacing: 0.15em; color: #ff4500; font-family: 'Menlo', monospace; margin-bottom: 12px;">▸ PDF & VERSAND</div>
+    <button class="btn" onclick="generateOverviewPDF()" style="margin-bottom: 6px;">📄 Trainer-Übersicht als PDF</button>
+    <button class="btn secondary" onclick="generateAllParticipantPDFs()" style="margin-bottom: 6px;">📋 PDFs pro Teilnehmer</button>
+    <button class="btn secondary" onclick="shareSessionPDF()" id="shareBtn">📤 Per Email / Teilen</button>
+  </div>
+  
   <button class="btn secondary" onclick="exportJSON()" style="margin-top: 14px;">📥 Daten exportieren (JSON)</button>
   <button class="btn secondary" onclick="confirmReset()" style="margin-top: 8px;">🗑 Session löschen</button>
 </div>
@@ -398,36 +418,231 @@ html, body { background: #0a0d12; color: #e8edf2; font-family: -apple-system, Bl
 <script>
 'use strict';
 
-const EX = [
-  { id:'slalom', num:'01', name:'Slalom', desc:'Pylonen-Slalom mit 18m Abstand, 7 Pylonen. Zügige saubere Durchfahrt, Stillstand in Zielzone.',
-    refType:'time', tolerance:4.0,
-    criteria:[
-      {id:'pylons', name:'Alle Pylonen stehen geblieben', weight:'std', source:'trainer', pass:2.0, fail:5.0},
-      {id:'time', name:'Zielzeit eingehalten', weight:'bns', source:'time', pass:1.0, fail:4.0},
-      {id:'stop', name:'Stillstand in Zielzone', weight:'ko', source:'auto', pass:2.0, fail:5.0}
-    ]},
-  { id:'hsb', num:'02', name:'Highspeed-Bremsung', desc:'Vollbremsung aus 160 km/h (trocken) bzw. 140 km/h (nass) bis Stillstand.',
-    refType:'speed', refValue:160,
-    criteria:[
-      {id:'brakepoint', name:'Bremspunkt getroffen', weight:'std', source:'auto', pass:2.0, fail:5.0},
-      {id:'entry_speed', name:'Eintrittsgeschwindigkeit erreicht', weight:'ko', source:'auto', pass:2.0, fail:5.0},
-      {id:'full_brake', name:'Vollbremsung bis Stillstand', weight:'ko', source:'auto', pass:2.0, fail:4.0}
-    ]},
-  { id:'lc', num:'03', name:'Doppelter Spurwechsel', desc:'Spurwechsel mit 70 km/h Eintrittsgeschwindigkeit, Hindernis ausweichen, Zielzone treffen.',
-    refType:'speed', refValue:70,
-    criteria:[
-      {id:'target_zone', name:'Zielzone durchfahren', weight:'std', source:'auto', pass:2.0, fail:5.0},
-      {id:'entry_speed', name:'Eintrittsgeschwindigkeit (67-73 km/h)', weight:'ko', source:'auto', pass:2.0, fail:5.0},
-      {id:'pylons', name:'Alle Pylonen stehen geblieben', weight:'ko', source:'trainer', pass:2.0, fail:4.0}
-    ]},
-  { id:'ba', num:'04', name:'Bremsen und Ausweichen', desc:'Bremsen und gleichzeitig ausweichen. 70 km/h Eintrittsgeschwindigkeit, ABS mit Ausweichmanöver.',
-    refType:'speed', refValue:70,
-    criteria:[
-      {id:'target_zone', name:'Zielzone durchfahren', weight:'std', source:'auto', pass:2.0, fail:5.0},
-      {id:'entry_speed', name:'Eintrittsgeschwindigkeit (67-73 km/h)', weight:'ko', source:'auto', pass:2.0, fail:5.0},
-      {id:'pylons', name:'Alle Pylonen stehen geblieben', weight:'ko', source:'trainer', pass:2.0, fail:4.0}
-    ]}
-];
+const PROGRAMS = {
+  basis: {
+    name: 'Basistraining',
+    desc: '4 Pflicht-Übungen mit Sensor- und Pylonen-Bewertung',
+    exercises: [
+      { id:'slalom', num:'01', name:'Slalom', desc:'Pylonen-Slalom mit 18m Abstand, 7 Pylonen. Zügige saubere Durchfahrt, Stillstand in Zielzone.',
+        refType:'time', tolerance:4.0,
+        criteria:[
+          {id:'pylons', name:'Alle Pylonen stehen geblieben', weight:'std', source:'trainer', pass:2.0, fail:5.0},
+          {id:'time', name:'Zielzeit eingehalten', weight:'bns', source:'time', pass:1.0, fail:4.0},
+          {id:'stop', name:'Stillstand in Zielzone', weight:'ko', source:'auto', pass:2.0, fail:5.0}
+        ]},
+      { id:'hsb', num:'02', name:'Highspeed-Bremsung', desc:'Vollbremsung aus 160 km/h (trocken) bzw. 140 km/h (nass) bis Stillstand.',
+        refType:'speed', refValue:160,
+        criteria:[
+          {id:'brakepoint', name:'Bremspunkt getroffen', weight:'std', source:'auto', pass:2.0, fail:5.0},
+          {id:'entry_speed', name:'Eintrittsgeschwindigkeit erreicht', weight:'ko', source:'auto', pass:2.0, fail:5.0},
+          {id:'full_brake', name:'Vollbremsung bis Stillstand', weight:'ko', source:'auto', pass:2.0, fail:4.0}
+        ]},
+      { id:'lc', num:'03', name:'Doppelter Spurwechsel', desc:'Spurwechsel mit 70 km/h Eintrittsgeschwindigkeit, Hindernis ausweichen, Zielzone treffen.',
+        refType:'speed', refValue:70,
+        criteria:[
+          {id:'target_zone', name:'Zielzone durchfahren', weight:'std', source:'auto', pass:2.0, fail:5.0},
+          {id:'entry_speed', name:'Eintrittsgeschwindigkeit (67-73 km/h)', weight:'ko', source:'auto', pass:2.0, fail:5.0},
+          {id:'pylons', name:'Alle Pylonen stehen geblieben', weight:'ko', source:'trainer', pass:2.0, fail:4.0}
+        ]},
+      { id:'ba', num:'04', name:'Bremsen und Ausweichen', desc:'Bremsen und gleichzeitig ausweichen. 70 km/h Eintrittsgeschwindigkeit, ABS mit Ausweichmanöver.',
+        refType:'speed', refValue:70,
+        criteria:[
+          {id:'target_zone', name:'Zielzone durchfahren', weight:'std', source:'auto', pass:2.0, fail:5.0},
+          {id:'entry_speed', name:'Eintrittsgeschwindigkeit (67-73 km/h)', weight:'ko', source:'auto', pass:2.0, fail:5.0},
+          {id:'pylons', name:'Alle Pylonen stehen geblieben', weight:'ko', source:'trainer', pass:2.0, fail:4.0}
+        ]}
+    ]
+  },
+  hoch: {
+    name: 'Hochleistungstraining',
+    desc: '4 anspruchsvolle Übungen — Sensor + Trainer-Bewertung kombiniert',
+    exercises: [
+      { id:'kreis', num:'01', name:'Kreisbahn', desc:'Konstante Kreisfahrt bei steigender Geschwindigkeit. Querbeschleunigung halten ohne Spin.',
+        refType:'g', refValue:0.8,
+        criteria:[
+          {id:'gforce', name:'Querbeschleunigung 0.7g+ erreicht', weight:'std', source:'auto', pass:2.0, fail:5.0},
+          {id:'constant', name:'Geschwindigkeit konstant (±5 km/h)', weight:'std', source:'auto', pass:2.0, fail:5.0},
+          {id:'spin', name:'Kein Spin / Kontrolle behalten', weight:'ko', source:'auto', pass:2.0, fail:5.0},
+          {id:'steering', name:'Lenktechnik sauber & früh', weight:'bns', source:'trainer-3', pass:2.0, fail:5.0},
+          {id:'vision', name:'Blickführung weit voraus', weight:'std', source:'trainer-3', pass:2.0, fail:5.0}
+        ]},
+      { id:'hslalom', num:'02', name:'Hochgeschwindigkeits-Slalom', desc:'Slalom bei 80+ km/h. Längere Pylonen-Abstände, höhere Anforderung an Lenkrhythmus.',
+        refType:'time', tolerance:3.0,
+        criteria:[
+          {id:'time', name:'Zielzeit eingehalten', weight:'std', source:'time', pass:2.0, fail:5.0},
+          {id:'max_speed', name:'Mindest-Speed 75 km/h erreicht', weight:'ko', source:'auto', pass:2.0, fail:5.0},
+          {id:'pylons', name:'Alle Pylonen stehen geblieben', weight:'std', source:'trainer', pass:2.0, fail:5.0},
+          {id:'rhythm', name:'Lenkrhythmus gleichmäßig', weight:'bns', source:'trainer-3', pass:2.0, fail:5.0},
+          {id:'throttle', name:'Gasdosierung kontrolliert', weight:'std', source:'trainer-3', pass:2.0, fail:5.0}
+        ]},
+      { id:'hslc', num:'03', name:'Doppelter Spurwechsel Hochspeed', desc:'Spurwechsel mit 100 km/h Eintrittsgeschwindigkeit. Schnelle Reaktion gefragt.',
+        refType:'speed', refValue:100,
+        criteria:[
+          {id:'target_zone', name:'Zielzone durchfahren', weight:'std', source:'auto', pass:2.0, fail:5.0},
+          {id:'entry_speed', name:'Eintrittsgeschwindigkeit (97-103 km/h)', weight:'ko', source:'auto', pass:2.0, fail:5.0},
+          {id:'pylons', name:'Alle Pylonen stehen geblieben', weight:'ko', source:'trainer', pass:2.0, fail:4.0},
+          {id:'reaction', name:'Reaktion schnell & sicher', weight:'bns', source:'trainer-3', pass:2.0, fail:5.0},
+          {id:'precision', name:'Lenkpräzision (keine Korrekturen)', weight:'std', source:'trainer-3', pass:2.0, fail:5.0}
+        ]},
+      { id:'handling', num:'04', name:'Handlingkurs', desc:'Kurvenkombination mit mehreren Richtungswechseln. Test der gesamten Fahrtechnik.',
+        refType:'time', tolerance:5.0,
+        criteria:[
+          {id:'time', name:'Zielzeit eingehalten', weight:'std', source:'time', pass:2.0, fail:5.0},
+          {id:'max_g', name:'Max Querbeschl. >0.6g', weight:'std', source:'auto', pass:2.0, fail:5.0},
+          {id:'spin', name:'Kein Spin / Abflug', weight:'ko', source:'auto', pass:2.0, fail:5.0},
+          {id:'line', name:'Linienwahl sauber', weight:'bns', source:'trainer-3', pass:2.0, fail:5.0},
+          {id:'transitions', name:'Übergänge flüssig', weight:'std', source:'trainer-3', pass:2.0, fail:5.0}
+        ]}
+    ]
+  },
+  dyn: {
+    name: 'Hochdynamiktraining',
+    desc: '4 Grenzbereichs-Übungen — Schleuderplatte und dynamische Manöver',
+    exercises: [
+      { id:'skid', num:'01', name:'Schleuderplatte', desc:'Heck bricht aus auf Schleuderplatte. Gegensteuern, Kontrolle zurückgewinnen.',
+        refType:'g', refValue:0.5,
+        criteria:[
+          {id:'counter', name:'Gegenlenken erkannt (Gier-Reaktion)', weight:'std', source:'auto', pass:2.0, fail:5.0},
+          {id:'recovery', name:'Fahrzeug stabilisiert', weight:'ko', source:'auto', pass:2.0, fail:5.0},
+          {id:'no_spin', name:'Kein vollständiger Spin', weight:'ko', source:'auto', pass:2.0, fail:5.0},
+          {id:'reaction', name:'Reaktion früh & richtig', weight:'bns', source:'trainer-3', pass:2.0, fail:5.0},
+          {id:'composure', name:'Ruhe & Kontrolle bewahrt', weight:'std', source:'trainer-3', pass:2.0, fail:5.0}
+        ]},
+      { id:'wetcurve', name:'Nasse Kurve', num:'02', desc:'Kurvenfahrt auf nasser Fahrbahn. Grenzbereich erfahren, ESP-Eingriffe erleben.',
+        refType:'speed', refValue:60,
+        criteria:[
+          {id:'entry_speed', name:'Eintrittsgeschwindigkeit erreicht', weight:'std', source:'auto', pass:2.0, fail:5.0},
+          {id:'gforce', name:'Querbeschl. im Grenzbereich (0.4-0.6g)', weight:'std', source:'auto', pass:2.0, fail:5.0},
+          {id:'control', name:'Kontrolle behalten (kein Untersteuern hart)', weight:'ko', source:'auto', pass:2.0, fail:5.0},
+          {id:'gas', name:'Gas/Brems-Einsatz dosiert', weight:'bns', source:'trainer-3', pass:2.0, fail:5.0},
+          {id:'vision', name:'Blickführung beibehalten', weight:'std', source:'trainer-3', pass:2.0, fail:5.0}
+        ]},
+      { id:'emerg', num:'03', name:'Notbremsung mit Ausweichen', desc:'ABS-Vollbremsung aus 90 km/h mit gleichzeitigem Ausweichen vor Hindernis.',
+        refType:'speed', refValue:90,
+        criteria:[
+          {id:'entry_speed', name:'Eintrittsgeschwindigkeit (87-93 km/h)', weight:'ko', source:'auto', pass:2.0, fail:5.0},
+          {id:'full_brake', name:'Vollbremsung erkannt (>0.8g)', weight:'std', source:'auto', pass:2.0, fail:5.0},
+          {id:'target_zone', name:'Zielzone getroffen', weight:'std', source:'auto', pass:2.0, fail:5.0},
+          {id:'pylons', name:'Hindernis-Pylonen stehen geblieben', weight:'ko', source:'trainer', pass:2.0, fail:5.0},
+          {id:'coolness', name:'Coolness unter Stress', weight:'bns', source:'trainer-3', pass:2.0, fail:5.0}
+        ]},
+      { id:'driftrec', num:'04', name:'Übersteuern abfangen', desc:'Bewusst provoziertes Übersteuern (Lastwechsel). Kontrolle behalten, Linie halten.',
+        refType:'speed', refValue:70,
+        criteria:[
+          {id:'oversteer', name:'Übersteuern eindeutig provoziert', weight:'std', source:'auto', pass:2.0, fail:5.0},
+          {id:'recovery', name:'Fahrzeug abgefangen', weight:'ko', source:'auto', pass:2.0, fail:5.0},
+          {id:'no_spin', name:'Kein Spin / 360°', weight:'ko', source:'auto', pass:2.0, fail:5.0},
+          {id:'steering', name:'Gegenlenken früh & richtig', weight:'bns', source:'trainer-3', pass:2.0, fail:5.0},
+          {id:'throttle', name:'Gas-Einsatz beim Abfangen', weight:'std', source:'trainer-3', pass:2.0, fail:5.0}
+        ]}
+    ]
+  },
+  super: {
+    name: 'Supersporttraining',
+    desc: '4 Sport-Aufbau-Übungen — sportliches Fahren am Limit',
+    exercises: [
+      { id:'longslalom', num:'01', name:'Langer Slalom 100+', desc:'Pylonen-Slalom mit 22m Abstand bei 100+ km/h. Lenkrhythmus und Kontrolle am Limit.',
+        refType:'time', tolerance:3.0,
+        criteria:[
+          {id:'time', name:'Zielzeit eingehalten', weight:'std', source:'time', pass:2.0, fail:5.0},
+          {id:'max_speed', name:'Mindest-Speed 95 km/h erreicht', weight:'ko', source:'auto', pass:2.0, fail:5.0},
+          {id:'pylons', name:'Alle Pylonen stehen geblieben', weight:'std', source:'trainer', pass:2.0, fail:5.0},
+          {id:'gforce', name:'Querbeschl. > 0.7g', weight:'std', source:'auto', pass:2.0, fail:5.0},
+          {id:'rhythm', name:'Lenkrhythmus sauber & sportlich', weight:'bns', source:'trainer-3', pass:2.0, fail:5.0},
+          {id:'precision', name:'Präzision in jeder Pylone', weight:'std', source:'trainer-3', pass:2.0, fail:5.0}
+        ]},
+      { id:'limitcircle', num:'02', name:'Kreisbahn am Limit', desc:'Konstante Kreisfahrt am physikalischen Grip-Limit. 0.9g+ erreichen, ESP-Eingriffe minimieren.',
+        refType:'g', refValue:0.9,
+        criteria:[
+          {id:'gforce', name:'Querbeschl. > 0.85g erreicht', weight:'std', source:'auto', pass:2.0, fail:5.0},
+          {id:'constant', name:'Geschwindigkeit konstant (±3 km/h)', weight:'std', source:'auto', pass:2.0, fail:5.0},
+          {id:'spin', name:'Kein Spin / Kontrolle behalten', weight:'ko', source:'auto', pass:2.0, fail:5.0},
+          {id:'limit_feel', name:'Grip-Limit erspürt & gehalten', weight:'bns', source:'trainer-3', pass:2.0, fail:5.0},
+          {id:'throttle', name:'Gasdosierung am Limit fein', weight:'bns', source:'trainer-3', pass:2.0, fail:5.0},
+          {id:'vision', name:'Blickführung weit voraus', weight:'std', source:'trainer-3', pass:2.0, fail:5.0}
+        ]},
+      { id:'handlingpro', num:'03', name:'Handling-Parcours Pro', desc:'Anspruchsvoller Kurvenparcours mit Rechts-Links-Kombinationen, Bremszonen, Beschleunigungsphasen.',
+        refType:'time', tolerance:4.0,
+        criteria:[
+          {id:'time', name:'Zielzeit eingehalten', weight:'bns', source:'time', pass:2.0, fail:5.0},
+          {id:'max_g', name:'Max Querbeschl. > 0.8g', weight:'std', source:'auto', pass:2.0, fail:5.0},
+          {id:'spin', name:'Kein Spin / Abflug', weight:'ko', source:'auto', pass:2.0, fail:5.0},
+          {id:'brake_pts', name:'Bremspunkte sauber', weight:'std', source:'auto', pass:2.0, fail:5.0},
+          {id:'line', name:'Ideallinie konsequent', weight:'bns', source:'trainer-3', pass:2.0, fail:5.0},
+          {id:'transitions', name:'Lastwechsel kontrolliert', weight:'std', source:'trainer-3', pass:2.0, fail:5.0},
+          {id:'consistency', name:'Wiederholbarkeit der Runden', weight:'imp', source:'trainer-3', pass:2.0, fail:5.0}
+        ]},
+      { id:'driftctrl', num:'04', name:'Driftkontrolle', desc:'Kontrolliertes Übersteuern halten. Drift-Winkel über mehrere Sekunden konstant.',
+        refType:'speed', refValue:60,
+        criteria:[
+          {id:'oversteer', name:'Drift eingeleitet (>15° Gier)', weight:'std', source:'auto', pass:2.0, fail:5.0},
+          {id:'no_spin', name:'Kein voller Spin', weight:'ko', source:'auto', pass:2.0, fail:5.0},
+          {id:'recovery', name:'Sauber abgefangen', weight:'ko', source:'auto', pass:2.0, fail:5.0},
+          {id:'duration', name:'Drift > 2 Sekunden gehalten', weight:'bns', source:'trainer-3', pass:2.0, fail:5.0},
+          {id:'angle_ctrl', name:'Driftwinkel kontrolliert', weight:'bns', source:'trainer-3', pass:2.0, fail:5.0},
+          {id:'throttle', name:'Gas-/Lenkbalance', weight:'std', source:'trainer-3', pass:2.0, fail:5.0}
+        ]}
+    ]
+  },
+  track: {
+    name: 'Rundstreckentraining',
+    desc: 'Rundstrecken-Bewertung — Rundenzeit + Fahrtechnik durch Trainer',
+    exercises: [
+      { id:'laptime', num:'01', name:'Rundenzeit', desc:'Vollständige Runde auf der Rennstrecke. GPS misst Zeit, Trainer bewertet Linie & Konstanz.',
+        refType:'time', tolerance:5.0,
+        criteria:[
+          {id:'time', name:'Zielzeit eingehalten (Trainer +5s)', weight:'bns', source:'time', pass:2.0, fail:5.0},
+          {id:'max_speed', name:'Top-Speed erreicht (auf Gerade)', weight:'std', source:'auto', pass:2.0, fail:5.0},
+          {id:'max_g', name:'Max Querbeschl. > 1.0g (Kurven)', weight:'std', source:'auto', pass:2.0, fail:5.0},
+          {id:'spin', name:'Kein Abflug / Spin', weight:'ko', source:'auto', pass:2.0, fail:5.0},
+          {id:'line', name:'Ideallinie befahren', weight:'bns', source:'trainer-3', pass:2.0, fail:5.0},
+          {id:'brake_pts', name:'Bremspunkte konsequent getroffen', weight:'imp', source:'trainer-3', pass:2.0, fail:5.0},
+          {id:'apex', name:'Scheitelpunkte sauber', weight:'imp', source:'trainer-3', pass:2.0, fail:5.0}
+        ]},
+      { id:'sectorbrake', num:'02', name:'Bremszone-Sektor', desc:'Hochgeschwindigkeits-Bremszone vor Kurve. Spätbremsen + Anlegen der Linie.',
+        refType:'speed', refValue:180,
+        criteria:[
+          {id:'max_speed', name:'Anfahrt > 170 km/h', weight:'std', source:'auto', pass:2.0, fail:5.0},
+          {id:'full_brake', name:'Vollbremsung (-1.0g+)', weight:'std', source:'auto', pass:2.0, fail:5.0},
+          {id:'spin', name:'Kein Blockieren / Kontrolle', weight:'ko', source:'auto', pass:2.0, fail:5.0},
+          {id:'brake_late', name:'Spät genug gebremst', weight:'bns', source:'trainer-3', pass:2.0, fail:5.0},
+          {id:'trail_brake', name:'Trail-Braking sauber', weight:'bns', source:'trainer-3', pass:2.0, fail:5.0},
+          {id:'turn_in', name:'Einlenkpunkt richtig', weight:'std', source:'trainer-3', pass:2.0, fail:5.0}
+        ]},
+      { id:'fastcorner', num:'03', name:'Schnelle Kurve', desc:'Hochgeschwindigkeitskurve. Anliegen, max Speed durch Kurve, sauberer Ausgang.',
+        refType:'g', refValue:1.0,
+        criteria:[
+          {id:'gforce', name:'Querbeschl. > 0.95g durchgehend', weight:'std', source:'auto', pass:2.0, fail:5.0},
+          {id:'constant', name:'Geschwindigkeit konstant durch Kurve', weight:'std', source:'auto', pass:2.0, fail:5.0},
+          {id:'spin', name:'Kein Abflug / Untersteuern hart', weight:'ko', source:'auto', pass:2.0, fail:5.0},
+          {id:'line', name:'Linie sauber von außen-innen-außen', weight:'bns', source:'trainer-3', pass:2.0, fail:5.0},
+          {id:'limit_feel', name:'Grip-Limit ausgereizt', weight:'bns', source:'trainer-3', pass:2.0, fail:5.0},
+          {id:'exit_speed', name:'Kurvenausgang früh aufs Gas', weight:'imp', source:'trainer-3', pass:2.0, fail:5.0}
+        ]},
+      { id:'consistency', num:'04', name:'Konstanz über Stint', desc:'Mehrere Runden hintereinander. Streuung der Rundenzeiten als Konstanz-Indikator.',
+        refType:'time', tolerance:3.0,
+        criteria:[
+          {id:'time', name:'Beste Runde nahe Zielzeit', weight:'std', source:'time', pass:2.0, fail:5.0},
+          {id:'max_g', name:'Max Querbeschl. > 0.9g', weight:'std', source:'auto', pass:2.0, fail:5.0},
+          {id:'spin', name:'Stint ohne Spin/Abflug', weight:'ko', source:'auto', pass:2.0, fail:5.0},
+          {id:'lap_var', name:'Runden-Streuung < 2s (Konstanz)', weight:'bns', source:'trainer-3', pass:2.0, fail:5.0},
+          {id:'tire_mgmt', name:'Reifen-Management', weight:'bns', source:'trainer-3', pass:2.0, fail:5.0},
+          {id:'focus', name:'Konzentration über den Stint', weight:'imp', source:'trainer-3', pass:2.0, fail:5.0}
+        ]}
+    ]
+  }
+};
+
+// Helper: returns active exercises for current session program
+function getEX() {
+  const prog = state.session?.program || 'basis';
+  return (PROGRAMS[prog] || PROGRAMS.basis).exercises;
+}
+
+// Backward compatibility: EX always refers to current program
+Object.defineProperty(window, 'EX', {
+  get() { return getEX(); }
+});
 
 let state = {
   perms:false, demo:false,
@@ -440,7 +655,16 @@ let sd = { ax:0, ay:0, az:0, yaw:0, speed:0 };
 let pCount = 0;
 
 function save() { try { if(state.session) localStorage.setItem('driverai_session', JSON.stringify(state.session)); } catch(e){} }
-function load() { try { const s = localStorage.getItem('driverai_session'); if(s) state.session = JSON.parse(s); } catch(e){} }
+function load() { 
+  try { 
+    const s = localStorage.getItem('driverai_session'); 
+    if(s) {
+      state.session = JSON.parse(s);
+      // Backward compatibility: add program field if missing
+      if (state.session && !state.session.program) state.session.program = 'basis';
+    }
+  } catch(e){} 
+}
 
 async function requestPerms() {
   try {
@@ -501,11 +725,12 @@ function goHome() { load(); refreshHome(); showScreen('screen-home'); }
 
 function refreshHome() {
   if (state.session) {
+    const progName = (PROGRAMS[state.session.program] || PROGRAMS.basis).name;
     document.getElementById('sessionBanner').style.display='block';
     document.getElementById('continueCard').style.display='block';
     document.getElementById('overviewCard').style.display='block';
     document.getElementById('bannerTitle').textContent = state.session.location;
-    document.getElementById('bannerMeta').textContent = `${state.session.date} · Trainer: ${state.session.trainer} · ${state.session.participants.length} Teilnehmer`;
+    document.getElementById('bannerMeta').textContent = `${progName} · ${state.session.date} · ${state.session.participants.length} Teilnehmer`;
     document.getElementById('continueMeta').textContent = `${state.session.location} · ${state.session.date}`;
   } else {
     document.getElementById('sessionBanner').style.display='none';
@@ -519,6 +744,7 @@ function newSession() {
   document.getElementById('fDate').value = new Date().toISOString().substring(0,10);
   document.getElementById('fLocation').value = '';
   document.getElementById('fTrainer').value = '';
+  document.getElementById('fEmail').value = '';
   pCount = 0;
   document.getElementById('pList').innerHTML = '';
   for (let i=0; i<4; i++) addP();
@@ -538,12 +764,14 @@ function createSession() {
   const date = document.getElementById('fDate').value;
   const location = document.getElementById('fLocation').value.trim();
   const trainer = document.getElementById('fTrainer').value.trim();
+  const email = document.getElementById('fEmail').value.trim();
+  const program = document.getElementById('fProgram').value || 'basis';
   if (!date || !location || !trainer) { alert('Bitte Datum, Ort und Trainer-Name ausfüllen.'); return; }
   const inputs = document.querySelectorAll('.p-input');
   const ps = []; let n=1;
   inputs.forEach(i => { const v=i.value.trim(); if(v) { ps.push({id:'p'+n, num:n, name:v, runs:{}}); n++; } });
   if (ps.length === 0) { alert('Mindestens einen Teilnehmer eintragen.'); return; }
-  state.session = { id:'s_'+Date.now(), date, location, trainer, program:'basis', participants:ps, references:{}, createdAt:Date.now() };
+  state.session = { id:'s_'+Date.now(), date, location, trainer, email, program, participants:ps, references:{}, createdAt:Date.now() };
   save(); refreshHome(); enterDashboard();
 }
 
@@ -551,7 +779,8 @@ function enterDashboard() {
   if (!state.session) return;
   document.getElementById('dashTitle').textContent = state.session.location;
   document.getElementById('dashMeta').textContent = `${state.session.date} · Trainer: ${state.session.trainer}`;
-  document.getElementById('dashSub').textContent = `${state.session.participants.length} Teilnehmer · ${EX.length} Übungen`;
+  const progName = (PROGRAMS[state.session.program] || PROGRAMS.basis).name;
+  document.getElementById('dashSub').textContent = `${progName} · ${state.session.participants.length} Teilnehmer · ${EX.length} Übungen`;
 
   // Show demo quick-fill buttons if in demo mode
   document.getElementById('demoQuickBox').style.display = state.demo ? 'block' : 'none';
@@ -622,10 +851,16 @@ function selectP(pid) {
 // ============================================================================
 // PENDING PYLON ENTRIES (Trainer sammelt nach allen Durchläufen)
 // ============================================================================
+// TRAINER REVIEW SYSTEM (Pylonen + 3-Stufen-Bewertungen)
+// ============================================================================
+function isTrainerPending(run) {
+  return run.pylonPending === true || run.trainerPending === true;
+}
+
 function getPendingPylonEntries(participantId, exerciseId) {
   const p = state.session.participants.find(x => x.id === participantId);
   if (!p || !p.runs[exerciseId]) return [];
-  return p.runs[exerciseId].filter(r => r.pylonPending === true);
+  return p.runs[exerciseId].filter(r => isTrainerPending(r));
 }
 
 function openPylonReview(participantId, exerciseId) {
@@ -643,7 +878,7 @@ function openPylonReview(participantId, exerciseId) {
   state.reviewPending = pending;
   
   document.getElementById('reviewTitle').textContent = `${p.name} · ${ex.name}`;
-  document.getElementById('reviewSub').textContent = `${pending.length} Durchlauf${pending.length>1?'läufe':''} ohne Pylonen-Eingabe`;
+  document.getElementById('reviewSub').textContent = `${pending.length} Durchlauf${pending.length>1?'läufe':''} mit offenen Trainer-Eingaben`;
   
   renderReviewList();
   showScreen('screen-review');
@@ -653,7 +888,7 @@ function renderReviewList() {
   const list = document.getElementById('reviewList');
   list.innerHTML = '';
   const ex = EX.find(e => e.id === state.reviewExercise);
-  const pylonCrit = ex.criteria.find(c => c.source === 'trainer');
+  const trainerCriteria = ex.criteria.filter(c => c.source === 'trainer' || c.source === 'trainer-3');
   
   state.reviewPending.forEach((run, idx) => {
     const div = document.createElement('div');
@@ -663,56 +898,139 @@ function renderReviewList() {
       .find(p => p.id === state.reviewParticipant)
       .runs[state.reviewExercise].indexOf(run);
     
+    let inputsHTML = '';
+    trainerCriteria.forEach(c => {
+      const already = (c.source === 'trainer' && run.pylonCount != null) ||
+                      (c.source === 'trainer-3' && run.trainerInputs && run.trainerInputs[c.id]);
+      
+      if (c.source === 'trainer') {
+        // Pylonen 0/1/2/3+
+        inputsHTML += `
+          <div style="margin-bottom: 14px;">
+            <div style="font-size: 12px; color: #c0c8d4; margin-bottom: 8px;">▸ ${c.name}</div>
+            <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px;">
+              <button class="btn green" onclick="setReviewPylon(${runIdx}, '${c.id}', 0)" style="padding: 12px 4px; font-size: 13px;">0</button>
+              <button class="btn red" onclick="setReviewPylon(${runIdx}, '${c.id}', 1)" style="padding: 12px 4px; font-size: 13px;">1</button>
+              <button class="btn red" onclick="setReviewPylon(${runIdx}, '${c.id}', 2)" style="padding: 12px 4px; font-size: 13px;">2</button>
+              <button class="btn red" onclick="setReviewPylon(${runIdx}, '${c.id}', 3)" style="padding: 12px 4px; font-size: 13px;">3+</button>
+            </div>
+            ${already ? `<div style="margin-top: 6px; font-size: 11px; color: #00ff88; font-family: 'Menlo', monospace;">✓ Eingegeben: ${run.pylonCount} Pylone${run.pylonCount === 1 ? '' : 'n'}</div>` : ''}
+          </div>`;
+      } else {
+        // 3-Stufen: erfüllt / teilweise / nicht erfüllt
+        const current = run.trainerInputs && run.trainerInputs[c.id];
+        const lblMap = { pass: 'Erfüllt', partial: 'Teilweise', fail: 'Nicht erfüllt' };
+        inputsHTML += `
+          <div style="margin-bottom: 14px;">
+            <div style="font-size: 12px; color: #c0c8d4; margin-bottom: 8px;">▸ ${c.name}</div>
+            <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 6px;">
+              <button class="btn green" onclick="setReviewTrainer3(${runIdx}, '${c.id}', 'pass')" style="padding: 12px 4px; font-size: 12px;">✓ Erfüllt</button>
+              <button class="btn yellow" onclick="setReviewTrainer3(${runIdx}, '${c.id}', 'partial')" style="padding: 12px 4px; font-size: 12px;">~ Teilweise</button>
+              <button class="btn red" onclick="setReviewTrainer3(${runIdx}, '${c.id}', 'fail')" style="padding: 12px 4px; font-size: 12px;">✗ Nicht</button>
+            </div>
+            ${current ? `<div style="margin-top: 6px; font-size: 11px; color: #00ff88; font-family: 'Menlo', monospace;">✓ Eingegeben: ${lblMap[current]}</div>` : ''}
+          </div>`;
+      }
+    });
+    
     div.innerHTML = `
       <div style="font-size: 10px; color: #555f6e; letter-spacing: 0.2em; text-transform: uppercase; margin-bottom: 6px; font-family: 'Menlo', monospace;">DURCHLAUF ${runIdx + 1}</div>
-      <div style="font-size: 13px; color: #c0c8d4; margin-bottom: 10px;">
+      <div style="font-size: 13px; color: #c0c8d4; margin-bottom: 14px;">
         Dauer: <strong>${run.duration.toFixed(2)}s</strong> · 
         Max Speed: <strong>${Math.round(run.stats.maxSpeed)} km/h</strong>
       </div>
-      <div style="font-size: 13px; margin-bottom: 10px;">${pylonCrit.name}?</div>
-      <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px;">
-        <button class="btn green" onclick="setReviewPylon(${runIdx}, 0)" style="padding: 14px 6px; font-size: 14px;">0</button>
-        <button class="btn red" onclick="setReviewPylon(${runIdx}, 1)" style="padding: 14px 6px; font-size: 14px;">1</button>
-        <button class="btn red" onclick="setReviewPylon(${runIdx}, 2)" style="padding: 14px 6px; font-size: 14px;">2</button>
-        <button class="btn red" onclick="setReviewPylon(${runIdx}, 3)" style="padding: 14px 6px; font-size: 14px;">3+</button>
-      </div>
-      ${run.pylonCount != null ? `<div style="margin-top: 8px; font-size: 11px; color: #00ff88; font-family: 'Menlo', monospace;">✓ Eingegeben: ${run.pylonCount} Pylone${run.pylonCount === 1 ? '' : 'n'}</div>` : ''}
+      ${inputsHTML}
     `;
     list.appendChild(div);
   });
 }
 
-function setReviewPylon(runIdx, count) {
-  const p = state.session.participants.find(x => x.id === state.reviewParticipant);
-  const run = p.runs[state.reviewExercise][runIdx];
-  const ex = EX.find(e => e.id === state.reviewExercise);
-  const pylonCrit = ex.criteria.find(c => c.source === 'trainer');
-  
-  run.pylonCount = count;
-  run.pylonPending = false;
-  run.evals[pylonCrit.id] = (count === 0);
-  
-  // Recalculate grade
+function recalcRunGrade(run, ex) {
   let sw = 0, sf = 0, ko = false;
   ex.criteria.forEach(c => {
-    const passed = run.evals[c.id];
-    const note = passed ? c.pass : c.fail;
-    let f = c.weight === 'bns' ? 3 : 1;
-    if (c.weight === 'ko' && !passed) ko = true;
+    const evalVal = run.evals[c.id];
+    let note;
+    
+    // For trainer-3: use the actual input value (pass/partial/fail)
+    if (c.source === 'trainer-3' && run.trainerInputs && run.trainerInputs[c.id]) {
+      const input = run.trainerInputs[c.id];
+      if (input === 'pass') note = 2.0;
+      else if (input === 'partial') note = 3.0;
+      else note = 5.0;
+    } else {
+      note = evalVal ? c.pass : c.fail;
+    }
+    
+    let f = 1;
+    if (c.weight === 'bns') f = 3;
+    if (c.weight === 'imp') f = 2;
+    if (c.weight === 'ko' && !evalVal) ko = true;
+    
     sw += note * f; sf += f;
   });
   run.grade = ko ? 5.0 : sw / sf;
+}
+
+function checkAllTrainerDone(run, ex) {
+  const trainerCrits = ex.criteria.filter(c => c.source === 'trainer' || c.source === 'trainer-3');
+  return trainerCrits.every(c => {
+    if (c.source === 'trainer') return run.pylonCount != null;
+    return run.trainerInputs && run.trainerInputs[c.id];
+  });
+}
+
+function setReviewPylon(runIdx, critId, count) {
+  const p = state.session.participants.find(x => x.id === state.reviewParticipant);
+  const run = p.runs[state.reviewExercise][runIdx];
+  const ex = EX.find(e => e.id === state.reviewExercise);
   
+  run.pylonCount = count;
+  run.evals[critId] = (count === 0);
+  
+  // Check if ALL trainer inputs are done
+  if (checkAllTrainerDone(run, ex)) {
+    run.pylonPending = false;
+    run.trainerPending = false;
+  }
+  
+  recalcRunGrade(run, ex);
   save();
   
-  // Update remaining pending list
   state.reviewPending = getPendingPylonEntries(state.reviewParticipant, state.reviewExercise);
   renderReviewList();
   
-  // If all done, show success
   if (state.reviewPending.length === 0) {
     setTimeout(() => {
-      alert('Alle Pylonen-Eingaben für diesen Teilnehmer & Übung erledigt!');
+      alert('Alle Trainer-Eingaben für diesen Teilnehmer & Übung erledigt!');
+      backFromReview();
+    }, 300);
+  }
+}
+
+function setReviewTrainer3(runIdx, critId, value) {
+  const p = state.session.participants.find(x => x.id === state.reviewParticipant);
+  const run = p.runs[state.reviewExercise][runIdx];
+  const ex = EX.find(e => e.id === state.reviewExercise);
+  
+  run.trainerInputs = run.trainerInputs || {};
+  run.trainerInputs[critId] = value;
+  run.evals[critId] = (value !== 'fail');  // fail makes KO-eval false, others pass
+  
+  // Check if ALL trainer inputs are done
+  if (checkAllTrainerDone(run, ex)) {
+    run.pylonPending = false;
+    run.trainerPending = false;
+  }
+  
+  recalcRunGrade(run, ex);
+  save();
+  
+  state.reviewPending = getPendingPylonEntries(state.reviewParticipant, state.reviewExercise);
+  renderReviewList();
+  
+  if (state.reviewPending.length === 0) {
+    setTimeout(() => {
+      alert('Alle Trainer-Eingaben für diesen Teilnehmer & Übung erledigt!');
       backFromReview();
     }, 300);
   }
@@ -733,12 +1051,14 @@ function renderExCards() {
       if (state.session.references[ex.id] != null) {
         cls='done'; lbl='Referenz ✓';
         const r = state.session.references[ex.id];
-        meta = ex.refType==='time' ? `Referenz: ${r.toFixed(2)}s` : `Referenz: ${Math.round(r)} km/h`;
+        if (ex.refType === 'time') meta = `Referenz: ${r.toFixed(2)}s`;
+        else if (ex.refType === 'g') meta = `Referenz: ${r.toFixed(2)}g`;
+        else meta = `Referenz: ${Math.round(r)} km/h`;
       }
     } else {
       const p = state.session.participants.find(x=>x.id===state.currentP);
       const runs = (p.runs && p.runs[ex.id]) || [];
-      pendingPylons = runs.filter(r => r.pylonPending === true).length;
+      pendingPylons = runs.filter(r => isTrainerPending(r)).length;
       if (runs.length > 0) {
         if (pendingPylons > 0) {
           cls='in-progress';
@@ -756,10 +1076,10 @@ function renderExCards() {
     const card = document.createElement('div');
     card.className = 'card ' + cls;
     
-    // Special click behavior: if pylons pending, offer to review them
+    // Special click behavior: if trainer inputs pending, offer to review them
     if (pendingPylons > 0) {
       card.onclick = () => {
-        if (confirm(`${pendingPylons} Durchlauf${pendingPylons>1?'läufe':''} warten auf Pylonen-Eingabe.\n\n[OK] = Pylonen-Eingabe öffnen\n[Abbrechen] = Übung normal öffnen (neuer Durchlauf)`)) {
+        if (confirm(`${pendingPylons} Durchlauf${pendingPylons>1?'läufe':''} warten auf Trainer-Eingabe.\n\n[OK] = Trainer-Eingabe öffnen\n[Abbrechen] = Übung normal öffnen (neuer Durchlauf)`)) {
           openPylonReview(state.currentP, ex.id);
         } else {
           openEx(ex.id);
@@ -799,6 +1119,9 @@ function openEx(id) {
     if (ex.refType === 'time') {
       document.getElementById('ctxValue').textContent = `Referenz: ${ref.toFixed(2)} s`;
       document.getElementById('ctxSub').textContent = `Ziel: ≤ ${(ref+ex.tolerance).toFixed(2)} s`;
+    } else if (ex.refType === 'g') {
+      document.getElementById('ctxValue').textContent = `Ziel: ${ex.refValue.toFixed(1)}g+ Querbeschl.`;
+      document.getElementById('ctxSub').textContent = 'Konstante Kreisfahrt im Grenzbereich';
     } else {
       document.getElementById('ctxValue').textContent = `Soll: ${ex.refValue} km/h`;
       document.getElementById('ctxSub').textContent = 'Eintrittsgeschwindigkeit am Tor';
@@ -890,10 +1213,11 @@ function stopRec(abort) {
 }
 
 function computeStats(data, dur) {
-  if (data.length === 0) return { duration:dur, maxSpeed:0, minLongG:0, maxLongG:0, maxLatGAbs:0, maxYawAbs:0, endSpeed:0, samples:0 };
+  if (data.length === 0) return { duration:dur, maxSpeed:0, minSpeed:0, minLongG:0, maxLongG:0, maxLatGAbs:0, maxYawAbs:0, endSpeed:0, samples:0 };
   return {
     duration:dur,
     maxSpeed:Math.max(...data.map(d=>d.speed)),
+    minSpeed:Math.min(...data.map(d=>d.speed)),
     minLongG:Math.min(...data.map(d=>d.ax)),
     maxLongG:Math.max(...data.map(d=>d.ax)),
     maxLatGAbs:Math.max(...data.map(d=>Math.abs(d.ay))),
@@ -905,25 +1229,76 @@ function computeStats(data, dur) {
 
 function simRun(q) {
   const ex = EX.find(e=>e.id===state.currentEx);
-  const ref = state.session.references[ex.id] || (ex.refType==='time'?7.0:ex.refValue);
+  const ref = state.session.references[ex.id];
+  
   let dur, stats;
-  if (q === 'good') {
-    dur = ex.refType==='time' ? ref+1.5 : 7.0;
-    stats = {duration:dur, maxSpeed:ex.refType==='speed'?ex.refValue:50, minLongG:-1.0, maxLongG:0.4, maxLatGAbs:0.7, maxYawAbs:25, endSpeed:0, samples:200};
-  } else if (q === 'warn') {
-    dur = ex.refType==='time' ? ref+3.5 : 7.0;
-    stats = {duration:dur, maxSpeed:ex.refType==='speed'?ex.refValue-2:48, minLongG:-0.75, maxLongG:0.3, maxLatGAbs:0.5, maxYawAbs:20, endSpeed:0.5, samples:200};
+  
+  // Determine program tier for realistic stat generation
+  const prog = state.session?.program || 'basis';
+  const isAdvanced = prog === 'super' || prog === 'track';
+  const isTrack = prog === 'track';
+  
+  // Generate realistic stats based on quality, exercise type, and program tier
+  if (ex.refType === 'time') {
+    const baseRef = ref || 7.0;
+    if (q === 'good') {
+      dur = baseRef + 1.5;
+      const maxG = isTrack ? 1.05 : (isAdvanced ? 0.92 : 0.85);
+      const topSpeed = isTrack ? 145 : (isAdvanced ? 110 : 80);
+      stats = {duration:dur, maxSpeed:topSpeed, minSpeed:topSpeed-25, minLongG:-1.1, maxLongG:0.4, maxLatGAbs:maxG, maxYawAbs:25, endSpeed:0, samples:200};
+    } else if (q === 'warn') {
+      dur = baseRef + 3.5;
+      const maxG = isTrack ? 0.85 : (isAdvanced ? 0.72 : 0.6);
+      const topSpeed = isTrack ? 130 : (isAdvanced ? 100 : 75);
+      stats = {duration:dur, maxSpeed:topSpeed, minSpeed:topSpeed-30, minLongG:-0.85, maxLongG:0.3, maxLatGAbs:maxG, maxYawAbs:80, endSpeed:0.5, samples:200};
+    } else {
+      dur = baseRef + 6.0;
+      const maxG = isTrack ? 0.6 : (isAdvanced ? 0.5 : 0.3);
+      const topSpeed = isTrack ? 110 : (isAdvanced ? 80 : 60);
+      stats = {duration:dur, maxSpeed:topSpeed, minSpeed:topSpeed-40, minLongG:-0.5, maxLongG:0.2, maxLatGAbs:maxG, maxYawAbs:15, endSpeed:5, samples:200};
+    }
+  } else if (ex.refType === 'g') {
+    dur = 8.0 + Math.random() * 2;
+    if (q === 'good') {
+      const targetG = ex.refValue || 0.8;
+      stats = {duration:dur, maxSpeed:isAdvanced?80:65, minSpeed:isAdvanced?77:60, minLongG:-0.3, maxLongG:0.3, maxLatGAbs:targetG+0.02, maxYawAbs:80, endSpeed:isAdvanced?75:55, samples:200};
+    } else if (q === 'warn') {
+      const targetG = (ex.refValue || 0.8) - 0.2;
+      stats = {duration:dur, maxSpeed:isAdvanced?70:60, minSpeed:isAdvanced?65:50, minLongG:-0.4, maxLongG:0.2, maxLatGAbs:targetG, maxYawAbs:150, endSpeed:isAdvanced?60:45, samples:200};
+    } else {
+      stats = {duration:dur, maxSpeed:55, minSpeed:35, minLongG:-0.6, maxLongG:0.1, maxLatGAbs:0.45, maxYawAbs:380, endSpeed:0, samples:200};
+    }
   } else {
-    dur = ex.refType==='time' ? ref+6.0 : 7.0;
-    stats = {duration:dur, maxSpeed:ex.refType==='speed'?ex.refValue-10:30, minLongG:-0.5, maxLongG:0.2, maxLatGAbs:0.3, maxYawAbs:15, endSpeed:5, samples:200};
+    // Speed-based
+    dur = 5.0 + Math.random() * 2;
+    if (q === 'good') {
+      stats = {duration:dur, maxSpeed:ex.refValue, minSpeed:ex.refValue-3, minLongG:isTrack?-1.1:-1.0, maxLongG:0.4, maxLatGAbs:isTrack?0.9:0.5, maxYawAbs:25, endSpeed:0, samples:200};
+    } else if (q === 'warn') {
+      stats = {duration:dur, maxSpeed:ex.refValue-2, minSpeed:ex.refValue-8, minLongG:-0.75, maxLongG:0.3, maxLatGAbs:0.4, maxYawAbs:80, endSpeed:0.5, samples:200};
+    } else {
+      stats = {duration:dur, maxSpeed:ex.refValue-15, minSpeed:ex.refValue-25, minLongG:-0.5, maxLongG:0.2, maxLatGAbs:0.3, maxYawAbs:15, endSpeed:5, samples:200};
+    }
   }
+  
   if (state.mode === 'trainer') {
-    state.session.references[ex.id] = ex.refType==='time' ? dur : stats.maxSpeed;
+    let refValue;
+    if (ex.refType === 'time') refValue = dur;
+    else if (ex.refType === 'g') refValue = stats.maxLatGAbs;
+    else refValue = stats.maxSpeed;
+    
+    state.session.references[ex.id] = refValue;
     save();
-    alert(`Referenz simuliert!\n${ex.refType==='time'?'Zeit: '+dur.toFixed(2)+' s':'Speed: '+Math.round(stats.maxSpeed)+' km/h'}`);
+    
+    let msg;
+    if (ex.refType === 'time') msg = 'Zeit: ' + dur.toFixed(2) + ' s';
+    else if (ex.refType === 'g') msg = 'Querbeschl.: ' + refValue.toFixed(2) + ' g';
+    else msg = 'Speed: ' + Math.round(refValue) + ' km/h';
+    
+    alert('Referenz simuliert!\n' + msg);
     backFromExercise();
     return;
   }
+  
   state.currentRun = { duration:dur, stats, timestamp:Date.now() };
   state.currentRun.simPylonFail = (q === 'bad');
   evalRun();
@@ -937,24 +1312,45 @@ function evalRun() {
   const p = state.session.participants.find(x=>x.id===state.currentP);
   document.getElementById('evSub').textContent = `${p.name} · Dauer: ${state.currentRun.duration.toFixed(2)}s · Max Speed: ${Math.round(stats.maxSpeed)} km/h`;
   state.currentRun.evals = {};
+  state.currentRun.trainerInputs = state.currentRun.trainerInputs || {};
+  
   ex.criteria.forEach(c => {
     if (c.source === 'auto') state.currentRun.evals[c.id] = autoEval(c, ex, stats);
     else if (c.source === 'time') state.currentRun.evals[c.id] = state.currentRun.duration <= ref + ex.tolerance;
-    else state.currentRun.evals[c.id] = null;
+    else state.currentRun.evals[c.id] = null;  // trainer or trainer-3
   });
-  const need = ex.criteria.find(c=>c.source==='trainer');
-  if (need && state.currentRun.evals[need.id] === null) {
+  
+  // Find ALL trainer-input criteria that are pending
+  const pendingCriteria = ex.criteria.filter(c => 
+    (c.source === 'trainer' || c.source === 'trainer-3') && state.currentRun.evals[c.id] === null
+  );
+  
+  if (pendingCriteria.length > 0) {
     if (state.currentRun.simPylonFail !== undefined) {
-      // Demo mode: directly set
-      state.currentRun.pylonCount = state.currentRun.simPylonFail ? 1 : 0;
-      state.currentRun.evals[need.id] = !state.currentRun.simPylonFail;
+      // Demo mode: directly set all trainer criteria
+      pendingCriteria.forEach(c => {
+        if (c.source === 'trainer') {
+          state.currentRun.pylonCount = state.currentRun.simPylonFail ? 1 : 0;
+          state.currentRun.evals[c.id] = !state.currentRun.simPylonFail;
+        } else {
+          // trainer-3: simulate as "erfüllt" (2.0)
+          state.currentRun.trainerInputs[c.id] = state.currentRun.simPylonFail ? 'partial' : 'pass';
+          state.currentRun.evals[c.id] = !state.currentRun.simPylonFail;
+        }
+      });
       document.getElementById('pylonBox').style.display = 'none';
       finalizeEval();
     } else {
-      // Real mode: mark as pending, save run with provisional grade, show notice
-      state.currentRun.pylonPending = true;
-      state.currentRun.evals[need.id] = true;  // provisional: assume passed, will be updated
-      finalizeEval(true);  // pass flag: pylonPending
+      // Real mode: mark as pending, save provisional grade
+      state.currentRun.trainerPending = true;
+      pendingCriteria.forEach(c => {
+        state.currentRun.evals[c.id] = true;  // provisional
+      });
+      // Backward compat: pylonPending flag for any trainer-source criterion
+      if (pendingCriteria.some(c => c.source === 'trainer')) {
+        state.currentRun.pylonPending = true;
+      }
+      finalizeEval(true);
     }
   } else {
     document.getElementById('pylonBox').style.display = 'none';
@@ -964,15 +1360,71 @@ function evalRun() {
 }
 
 function autoEval(c, ex, stats) {
+  // Basistraining-Kriterien
   if (c.id === 'stop') return stats.endSpeed < 1;
   if (c.id === 'brakepoint') return stats.minLongG < -0.5;
   if (c.id === 'entry_speed') {
+    if (ex.refValue === 180) return stats.maxSpeed >= 170;
     if (ex.refValue === 160) return stats.maxSpeed >= 155;
+    if (ex.refValue === 100) return stats.maxSpeed >= 97 && stats.maxSpeed <= 103;
+    if (ex.refValue === 90) return stats.maxSpeed >= 87 && stats.maxSpeed <= 93;
     if (ex.refValue === 70) return stats.maxSpeed >= 67 && stats.maxSpeed <= 73;
+    if (ex.refValue === 60) return stats.maxSpeed >= 55 && stats.maxSpeed <= 65;
     return true;
   }
-  if (c.id === 'full_brake') return stats.minLongG <= -0.7 && stats.endSpeed < 1;
+  if (c.id === 'full_brake') {
+    // Different g-thresholds for different exercises
+    if (ex.id === 'sectorbrake') return stats.minLongG <= -1.0;  // Rundstrecke: -1.0g
+    if (ex.id === 'emerg') return stats.minLongG <= -0.8;        // Notbremsung: -0.8g
+    return (stats.minLongG <= -0.7) && (stats.endSpeed < 1 || ex.id !== 'hsb');
+  }
   if (c.id === 'target_zone') return stats.endSpeed < 30;
+  
+  // Hochleistung & Supersport: gforce mit unterschiedlichen Schwellen je nach Übung
+  if (c.id === 'gforce') {
+    if (ex.id === 'fastcorner') return (stats.maxLatGAbs || 0) >= 0.95;  // Rundstrecke
+    if (ex.id === 'limitcircle') return (stats.maxLatGAbs || 0) >= 0.85; // Supersport
+    if (ex.id === 'longslalom') return (stats.maxLatGAbs || 0) >= 0.7;   // Supersport
+    if (ex.id === 'wetcurve') return (stats.maxLatGAbs || 0) >= 0.4 && (stats.maxLatGAbs || 0) <= 0.65;  // Hochdynamik
+    return (stats.maxLatGAbs || 0) >= 0.7;  // Default Hochleistung
+  }
+  
+  if (c.id === 'constant') {
+    if (ex.id === 'limitcircle') return (stats.maxSpeed - (stats.minSpeed || 0)) <= 3;  // tighter for limit
+    return (stats.maxSpeed - (stats.minSpeed || 0)) <= 5;
+  }
+  
+  if (c.id === 'spin') return (stats.maxYawAbs || 0) < 200;
+  
+  if (c.id === 'max_speed') {
+    if (ex.id === 'longslalom') return stats.maxSpeed >= 95;  // Supersport Slalom
+    if (ex.id === 'laptime') return stats.maxSpeed >= 120;    // Rundstrecke Top-Speed
+    if (ex.id === 'sectorbrake') return stats.maxSpeed >= 170; // Rundstrecke Bremszone
+    return stats.maxSpeed >= 75;
+  }
+  
+  if (c.id === 'max_g') {
+    if (ex.id === 'handlingpro') return (stats.maxLatGAbs || 0) > 0.8;  // Supersport
+    if (ex.id === 'laptime') return (stats.maxLatGAbs || 0) > 1.0;      // Rundstrecke
+    if (ex.id === 'consistency') return (stats.maxLatGAbs || 0) > 0.9;  // Rundstrecke
+    return (stats.maxLatGAbs || 0) > 0.6;
+  }
+  
+  // Brake-Point automatic detection: Bremspunkt sauber bei sauberer Verzögerung
+  if (c.id === 'brake_pts') {
+    return stats.minLongG <= -0.8;  // saubere Vollbremsung
+  }
+  
+  // Hochdynamik-Kriterien
+  if (c.id === 'counter') return (stats.maxYawAbs || 0) > 30;
+  if (c.id === 'recovery') return stats.endSpeed > 0 && (stats.maxYawAbs || 0) < 300;
+  if (c.id === 'no_spin') return (stats.maxYawAbs || 0) < 360;
+  if (c.id === 'control') return (stats.maxLatGAbs || 0) < 0.7;
+  if (c.id === 'oversteer') {
+    if (ex.id === 'driftctrl') return (stats.maxYawAbs || 0) > 15;  // Drift-Einleitung
+    return (stats.maxYawAbs || 0) > 50;
+  }
+  
   return true;
 }
 
@@ -991,10 +1443,22 @@ function finalizeEval(pylonPending) {
   let sw=0, sf=0, ko=false;
   ex.criteria.forEach(c => {
     const passed = evals[c.id];
-    const note = passed ? c.pass : c.fail;
+    let note;
+    
+    // For trainer-3 with actual input: use the granular value
+    if (c.source === 'trainer-3' && state.currentRun.trainerInputs && state.currentRun.trainerInputs[c.id]) {
+      const input = state.currentRun.trainerInputs[c.id];
+      if (input === 'pass') note = 2.0;
+      else if (input === 'partial') note = 3.0;
+      else note = 5.0;
+    } else {
+      note = passed ? c.pass : c.fail;
+    }
+    
     let f = 1;
     if (c.weight === 'std') f = 1;
     if (c.weight === 'bns') f = 3;
+    if (c.weight === 'imp') f = 2;
     if (c.weight === 'ko') { f = 1; if (!passed) ko = true; }
     sw += note * f; sf += f;
   });
@@ -1028,19 +1492,34 @@ function finalizeEval(pylonPending) {
   list.innerHTML = '';
   ex.criteria.forEach(c => {
     const passed = evals[c.id];
-    const note = passed ? c.pass : c.fail;
+    let note;
+    if (c.source === 'trainer-3' && state.currentRun.trainerInputs && state.currentRun.trainerInputs[c.id]) {
+      const input = state.currentRun.trainerInputs[c.id];
+      if (input === 'pass') note = 2.0;
+      else if (input === 'partial') note = 3.0;
+      else note = 5.0;
+    } else {
+      note = passed ? c.pass : c.fail;
+    }
+    
     let wt='std', wl='Standard 1×';
     if (c.weight === 'bns') { wt='bns'; wl='Bonus 3×'; }
+    if (c.weight === 'imp') { wt='bns'; wl='Wichtig 2×'; }
     if (c.weight === 'ko') { wt='ko'; wl='K.O.'; }
-    const isPyl = c.source === 'trainer';
+    
+    const isTrainerInput = c.source === 'trainer' || c.source === 'trainer-3';
     const item = document.createElement('div');
     item.className = 'criterion-item';
-    const symbol = isPyl && pylonPending ? '?' : (passed?'✓':'✗');
-    const symCls = isPyl && pylonPending ? '' : (passed?'pass':'fail');
-    const meta = isPyl && pylonPending 
+    
+    const symbol = isTrainerInput && pylonPending ? '?' : (passed?'✓':'✗');
+    const symCls = isTrainerInput && pylonPending ? '' : (passed?'pass':'fail');
+    
+    let sourceLabel = c.source==='auto'?'Sensor':c.source==='time'?'Zeit':'Trainer';
+    const meta = isTrainerInput && pylonPending 
       ? 'Trainer-Eingabe ausstehend' 
-      : `Note: ${note.toFixed(1)} · ${c.source==='auto'?'Sensor':c.source==='time'?'Zeit':'Trainer'}`;
-    item.innerHTML = `<div class="criterion-checkbox ${symCls}" style="${isPyl && pylonPending ? 'border-color: #ffb800; color: #ffb800;' : ''}">${symbol}</div><div class="criterion-info"><div class="criterion-name">${c.name}</div><div class="criterion-meta">${meta}</div></div><div class="criterion-weight ${wt}">${wl}</div>`;
+      : `Note: ${note.toFixed(1)} · ${sourceLabel}`;
+    
+    item.innerHTML = `<div class="criterion-checkbox ${symCls}" style="${isTrainerInput && pylonPending ? 'border-color: #ffb800; color: #ffb800;' : ''}">${symbol}</div><div class="criterion-info"><div class="criterion-name">${c.name}</div><div class="criterion-meta">${meta}</div></div><div class="criterion-weight ${wt}">${wl}</div>`;
     list.appendChild(item);
   });
   document.getElementById('evResult').style.display = 'block';
@@ -1058,7 +1537,13 @@ function showOverview() {
   let rh = '<strong>Trainer-Referenzen</strong><br>';
   EX.forEach(ex => {
     const r = state.session.references[ex.id];
-    rh += `<span class="chip">${ex.name}: ${r!=null?(ex.refType==='time'?r.toFixed(2)+'s':Math.round(r)+' km/h'):'—'}</span>`;
+    let display = '—';
+    if (r != null) {
+      if (ex.refType === 'time') display = r.toFixed(2) + 's';
+      else if (ex.refType === 'g') display = r.toFixed(2) + 'g';
+      else display = Math.round(r) + ' km/h';
+    }
+    rh += `<span class="chip">${ex.name}: ${display}</span>`;
   });
   rb.innerHTML = rh;
   c.appendChild(rb);
@@ -1117,6 +1602,593 @@ function showOverview() {
   showScreen('screen-overview');
 }
 
+// ============================================================================
+// PDF GENERATION
+// ============================================================================
+const COLORS = {
+  orange: [255, 69, 0],
+  orangeLight: [255, 229, 217],
+  dark: [10, 13, 18],
+  dark2: [26, 34, 48],
+  gray: [139, 149, 163],
+  grayDark: [85, 95, 110],
+  green: [0, 168, 107],
+  red: [200, 46, 78],
+  yellow: [192, 144, 0]
+};
+
+function getGradeColor(grade) {
+  if (grade >= 4.5) return COLORS.red;
+  if (grade >= 3.5) return COLORS.yellow;
+  if (grade >= 2.5) return COLORS.grayDark;
+  return COLORS.green;
+}
+
+function getGradeLetter(grade) {
+  if (grade >= 4.5) return 'E';
+  if (grade >= 3.5) return 'D';
+  if (grade >= 2.5) return 'C';
+  if (grade >= 1.5) return 'B';
+  return 'A';
+}
+
+function pdfHeader(doc, title, subtitle) {
+  // Orange accent bar
+  doc.setFillColor(...COLORS.orange);
+  doc.rect(0, 0, 210, 4, 'F');
+  
+  // Brand
+  doc.setTextColor(...COLORS.orange);
+  doc.setFontSize(20);
+  doc.setFont('helvetica', 'bold');
+  doc.text('DRIVER.AI', 15, 18);
+  
+  doc.setTextColor(...COLORS.grayDark);
+  doc.setFontSize(8);
+  doc.setFont('helvetica', 'normal');
+  doc.text('Fahrtraining-Bewertung', 15, 23);
+  
+  // Title block
+  doc.setTextColor(...COLORS.dark);
+  doc.setFontSize(16);
+  doc.setFont('helvetica', 'bold');
+  doc.text(title, 15, 38);
+  
+  doc.setTextColor(...COLORS.gray);
+  doc.setFontSize(10);
+  doc.setFont('helvetica', 'normal');
+  doc.text(subtitle, 15, 44);
+  
+  // Separator
+  doc.setDrawColor(...COLORS.orange);
+  doc.setLineWidth(0.3);
+  doc.line(15, 48, 195, 48);
+}
+
+function pdfFooter(doc, pageNum, totalPages) {
+  const y = 285;
+  doc.setDrawColor(...COLORS.gray);
+  doc.setLineWidth(0.1);
+  doc.line(15, y, 195, y);
+  
+  doc.setTextColor(...COLORS.orange);
+  doc.setFontSize(7);
+  doc.setFont('helvetica', 'bold');
+  doc.text('DRIVER.AI', 15, y + 5);
+  
+  doc.setTextColor(...COLORS.gray);
+  doc.setFont('helvetica', 'normal');
+  doc.text('Generiert am ' + new Date().toLocaleString('de-DE'), 105, y + 5, {align: 'center'});
+  doc.text(`Seite ${pageNum} / ${totalPages}`, 195, y + 5, {align: 'right'});
+}
+
+function sessionInfoBlock(doc, startY) {
+  const s = state.session;
+  const progName = (PROGRAMS[s.program] || PROGRAMS.basis).name;
+  
+  doc.setFillColor(248, 249, 250);
+  doc.rect(15, startY, 180, 25, 'F');
+  doc.setDrawColor(...COLORS.orange);
+  doc.setLineWidth(1.5);
+  doc.line(15, startY, 15, startY + 25);
+  
+  doc.setTextColor(...COLORS.grayDark);
+  doc.setFontSize(8);
+  doc.setFont('helvetica', 'normal');
+  doc.text('TRAININGS-PROGRAMM', 19, startY + 5);
+  doc.text('DATUM', 80, startY + 5);
+  doc.text('ORT', 120, startY + 5);
+  doc.text('TRAINER', 160, startY + 5);
+  
+  doc.setTextColor(...COLORS.dark);
+  doc.setFontSize(10);
+  doc.setFont('helvetica', 'bold');
+  doc.text(progName, 19, startY + 11);
+  doc.text(s.date, 80, startY + 11);
+  doc.text(s.location, 120, startY + 11);
+  doc.text(s.trainer, 160, startY + 11);
+  
+  // Trainer references
+  doc.setTextColor(...COLORS.grayDark);
+  doc.setFontSize(8);
+  doc.setFont('helvetica', 'normal');
+  doc.text('TAGES-REFERENZEN (Trainer-Fahrt)', 19, startY + 18);
+  
+  doc.setTextColor(...COLORS.dark);
+  doc.setFontSize(9);
+  let refText = EX.map(ex => {
+    const r = s.references[ex.id];
+    if (r == null) return ex.name + ': —';
+    let v;
+    if (ex.refType === 'time') v = r.toFixed(2) + 's';
+    else if (ex.refType === 'g') v = r.toFixed(2) + 'g';
+    else v = Math.round(r) + ' km/h';
+    return ex.name + ': ' + v;
+  }).join(' · ');
+  doc.text(refText, 19, startY + 23, {maxWidth: 175});
+  
+  return startY + 30;
+}
+
+function signatureBlock(doc, y, participantName) {
+  doc.setDrawColor(...COLORS.gray);
+  doc.setLineWidth(0.3);
+  
+  doc.line(20, y + 18, 90, y + 18);
+  doc.line(115, y + 18, 185, y + 18);
+  
+  doc.setTextColor(...COLORS.grayDark);
+  doc.setFontSize(8);
+  doc.setFont('helvetica', 'normal');
+  doc.text('Trainer-Unterschrift', 20, y + 22);
+  doc.text(state.session.trainer, 20, y + 26);
+  
+  if (participantName) {
+    doc.text('Teilnehmer-Unterschrift', 115, y + 22);
+    doc.text(participantName, 115, y + 26);
+  } else {
+    doc.text('Datum', 115, y + 22);
+  }
+}
+
+// ============================================================================
+// Trainer Overview PDF
+// ============================================================================
+function generateOverviewPDF(returnBlob) {
+  if (!window.jspdf) { alert('PDF-Library noch nicht geladen. Bitte gleich nochmal versuchen.'); return; }
+  if (!state.session) return;
+  
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF({orientation: 'p', unit: 'mm', format: 'a4'});
+  
+  pdfHeader(doc, 'Trainer-Übersicht', 'Tages-Auswertung aller Teilnehmer');
+  let y = sessionInfoBlock(doc, 55);
+  
+  // Overview table
+  y += 5;
+  doc.setTextColor(...COLORS.dark);
+  doc.setFontSize(11);
+  doc.setFont('helvetica', 'bold');
+  doc.text('Ergebnis-Matrix', 15, y);
+  y += 4;
+  
+  const headers = ['Teilnehmer', ...EX.map(e => e.name), 'Ø'];
+  const body = state.session.participants.map(p => {
+    const row = [p.name];
+    let sum = 0, count = 0, hasFail = false;
+    EX.forEach(ex => {
+      const runs = (p.runs && p.runs[ex.id]) || [];
+      if (runs.length === 0) {
+        row.push('—');
+      } else {
+        const best = Math.min(...runs.map(r => r.grade));
+        row.push(best.toFixed(1));
+        if (best >= 4.5) hasFail = true;
+        else { sum += best; count++; }
+      }
+    });
+    if (hasFail) row.push('FAIL');
+    else if (count === 0) row.push('—');
+    else row.push((sum / count).toFixed(2));
+    return row;
+  });
+  
+  doc.autoTable({
+    head: [headers],
+    body: body,
+    startY: y,
+    theme: 'plain',
+    headStyles: {
+      fillColor: COLORS.dark,
+      textColor: [255, 255, 255],
+      fontSize: 8,
+      fontStyle: 'bold',
+      halign: 'center'
+    },
+    bodyStyles: {
+      fontSize: 9,
+      cellPadding: 2,
+      halign: 'center'
+    },
+    columnStyles: {
+      0: { halign: 'left', fontStyle: 'bold' }
+    },
+    didParseCell: (data) => {
+      if (data.section === 'body' && data.column.index > 0) {
+        const val = data.cell.text[0];
+        if (val === 'FAIL') data.cell.styles.textColor = COLORS.red;
+        else if (val !== '—') {
+          const n = parseFloat(val);
+          if (!isNaN(n)) data.cell.styles.textColor = getGradeColor(n);
+        }
+        if (data.column.index === headers.length - 1) data.cell.styles.fontStyle = 'bold';
+      }
+    },
+    margin: { left: 15, right: 15 }
+  });
+  
+  y = doc.lastAutoTable.finalY + 8;
+  
+  // Statistics block
+  doc.setFillColor(248, 249, 250);
+  doc.rect(15, y, 180, 22, 'F');
+  doc.setTextColor(...COLORS.grayDark);
+  doc.setFontSize(8);
+  doc.setFont('helvetica', 'normal');
+  doc.text('STATISTIK', 19, y + 5);
+  
+  const stats = computeSessionStats();
+  doc.setTextColor(...COLORS.dark);
+  doc.setFontSize(9);
+  doc.text(`Teilnehmer: ${state.session.participants.length}`, 19, y + 11);
+  doc.text(`Übungen: ${EX.length}`, 19, y + 16);
+  doc.text(`Gesamt-Durchläufe: ${stats.totalRuns}`, 70, y + 11);
+  doc.text(`Bestandene: ${stats.passed} von ${state.session.participants.length}`, 70, y + 16);
+  doc.text(`Durchschnitt: Ø ${stats.avgGrade}`, 140, y + 11);
+  doc.text(`Beste Note: ${stats.bestGrade}`, 140, y + 16);
+  
+  y += 28;
+  
+  // Notes / Comments box
+  doc.setTextColor(...COLORS.dark);
+  doc.setFontSize(10);
+  doc.setFont('helvetica', 'bold');
+  doc.text('Trainer-Notizen', 15, y);
+  y += 4;
+  doc.setDrawColor(...COLORS.gray);
+  doc.setLineWidth(0.2);
+  doc.rect(15, y, 180, 30);
+  y += 35;
+  
+  // Signature
+  signatureBlock(doc, y, null);
+  
+  pdfFooter(doc, 1, 1);
+  
+  const filename = `DriverAI_Uebersicht_${state.session.date}_${state.session.location.replace(/\s/g, '_')}.pdf`;
+  
+  if (returnBlob) {
+    return { blob: doc.output('blob'), filename };
+  }
+  
+  doc.save(filename);
+}
+
+function computeSessionStats() {
+  let totalRuns = 0, passed = 0, sumGrades = 0, gradeCount = 0, bestGrade = 5.0;
+  state.session.participants.forEach(p => {
+    let allPassed = true, anyRun = false;
+    EX.forEach(ex => {
+      const runs = (p.runs && p.runs[ex.id]) || [];
+      totalRuns += runs.length;
+      if (runs.length > 0) {
+        anyRun = true;
+        const best = Math.min(...runs.map(r => r.grade));
+        if (best >= 4.5) allPassed = false;
+        else {
+          sumGrades += best;
+          gradeCount++;
+          if (best < bestGrade) bestGrade = best;
+        }
+      } else {
+        allPassed = false;
+      }
+    });
+    if (anyRun && allPassed) passed++;
+  });
+  return {
+    totalRuns,
+    passed,
+    avgGrade: gradeCount > 0 ? (sumGrades / gradeCount).toFixed(2) : '—',
+    bestGrade: gradeCount > 0 ? bestGrade.toFixed(1) : '—'
+  };
+}
+
+// ============================================================================
+// Participant PDF
+// ============================================================================
+function generateParticipantPDF(participant, returnBlob) {
+  if (!window.jspdf) { alert('PDF-Library noch nicht geladen.'); return; }
+  
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF({orientation: 'p', unit: 'mm', format: 'a4'});
+  
+  pdfHeader(doc, 'Teilnehmer-Bewertung', participant.name);
+  let y = sessionInfoBlock(doc, 55);
+  
+  y += 5;
+  
+  // Per-exercise blocks
+  EX.forEach((ex, idx) => {
+    const runs = (participant.runs && participant.runs[ex.id]) || [];
+    
+    // Check if we need a new page
+    if (y > 230) {
+      pdfFooter(doc, doc.internal.getNumberOfPages(), 0);
+      doc.addPage();
+      pdfHeader(doc, 'Teilnehmer-Bewertung', participant.name + ' · Fortsetzung');
+      y = 55;
+    }
+    
+    // Exercise header
+    doc.setFillColor(...COLORS.dark);
+    doc.rect(15, y, 180, 7, 'F');
+    doc.setTextColor(255, 255, 255);
+    doc.setFontSize(9);
+    doc.setFont('helvetica', 'bold');
+    doc.text(`ÜBUNG ${ex.num}  ·  ${ex.name}`, 19, y + 4.8);
+    
+    if (runs.length === 0) {
+      doc.setTextColor(...COLORS.gray);
+      doc.setFontSize(8);
+      doc.setFont('helvetica', 'italic');
+      doc.text('Nicht durchgeführt', 19, y + 13);
+      y += 18;
+    } else {
+      const bestGrade = Math.min(...runs.map(r => r.grade));
+      const bestRun = runs.find(r => r.grade === bestGrade);
+      const gradeColor = getGradeColor(bestGrade);
+      
+      // Best grade highlight box
+      doc.setFillColor(...gradeColor);
+      doc.rect(15, y + 7, 35, 18, 'F');
+      doc.setTextColor(255, 255, 255);
+      doc.setFontSize(7);
+      doc.setFont('helvetica', 'normal');
+      doc.text('BESTE NOTE', 32.5, y + 11, {align: 'center'});
+      doc.setFontSize(20);
+      doc.setFont('helvetica', 'bold');
+      doc.text(bestGrade.toFixed(1), 32.5, y + 19, {align: 'center'});
+      doc.setFontSize(7);
+      doc.setFont('helvetica', 'normal');
+      doc.text(getGradeLetter(bestGrade), 32.5, y + 23, {align: 'center'});
+      
+      // Runs summary right side
+      doc.setTextColor(...COLORS.dark);
+      doc.setFontSize(8);
+      doc.setFont('helvetica', 'bold');
+      doc.text(`${runs.length} Durchlauf${runs.length > 1 ? 'läufe' : ''}`, 55, y + 11);
+      
+      doc.setFont('helvetica', 'normal');
+      doc.setTextColor(...COLORS.grayDark);
+      const runsText = runs.map((r, i) => {
+        let detail;
+        if (ex.refType === 'time') detail = r.duration.toFixed(2) + 's';
+        else if (ex.refType === 'g') detail = (r.stats.maxLatGAbs || 0).toFixed(2) + 'g';
+        else detail = Math.round(r.stats.maxSpeed) + ' km/h';
+        return `#${i+1}: ${detail} → Note ${r.grade.toFixed(1)}`;
+      }).join('  ·  ');
+      doc.text(runsText, 55, y + 16, {maxWidth: 140});
+      
+      // Criteria details
+      doc.setTextColor(...COLORS.grayDark);
+      doc.setFontSize(7);
+      doc.text('Bewertungs-Kriterien (bester Durchlauf):', 55, y + 22);
+      
+      y += 28;
+      
+      // Criteria table for best run
+      const critRows = ex.criteria.map(c => {
+        const passed = bestRun.evals[c.id];
+        let result;
+        if (c.source === 'trainer-3' && bestRun.trainerInputs && bestRun.trainerInputs[c.id]) {
+          const v = bestRun.trainerInputs[c.id];
+          result = v === 'pass' ? 'Erfüllt' : v === 'partial' ? 'Teilweise' : 'Nicht erfüllt';
+        } else {
+          result = passed ? '✓' : '✗';
+        }
+        let note;
+        if (c.source === 'trainer-3' && bestRun.trainerInputs && bestRun.trainerInputs[c.id]) {
+          const v = bestRun.trainerInputs[c.id];
+          note = v === 'pass' ? '2.0' : v === 'partial' ? '3.0' : '5.0';
+        } else {
+          note = (passed ? c.pass : c.fail).toFixed(1);
+        }
+        const source = c.source === 'auto' ? 'Sensor' : c.source === 'time' ? 'Zeit' : 'Trainer';
+        const weight = c.weight === 'bns' ? 'Bonus 3×' : c.weight === 'imp' ? 'Wichtig 2×' : c.weight === 'ko' ? 'K.O.' : 'Standard';
+        return [c.name, source, result, note, weight];
+      });
+      
+      doc.autoTable({
+        head: [['Kriterium', 'Quelle', 'Ergebnis', 'Note', 'Gewichtung']],
+        body: critRows,
+        startY: y,
+        theme: 'plain',
+        headStyles: {
+          fillColor: [240, 242, 245],
+          textColor: COLORS.dark,
+          fontSize: 7,
+          fontStyle: 'bold'
+        },
+        bodyStyles: {
+          fontSize: 8,
+          cellPadding: 1.5
+        },
+        columnStyles: {
+          0: { cellWidth: 70 },
+          1: { cellWidth: 20, halign: 'center' },
+          2: { cellWidth: 28, halign: 'center', fontStyle: 'bold' },
+          3: { cellWidth: 18, halign: 'center' },
+          4: { cellWidth: 25, halign: 'center' }
+        },
+        didParseCell: (data) => {
+          if (data.section === 'body' && data.column.index === 2) {
+            const val = data.cell.text[0];
+            if (val === '✓' || val === 'Erfüllt') data.cell.styles.textColor = COLORS.green;
+            else if (val === 'Teilweise') data.cell.styles.textColor = COLORS.yellow;
+            else if (val === '✗' || val === 'Nicht erfüllt') data.cell.styles.textColor = COLORS.red;
+          }
+        },
+        margin: { left: 15, right: 15 }
+      });
+      
+      y = doc.lastAutoTable.finalY + 6;
+    }
+  });
+  
+  // Overall summary at bottom
+  if (y > 240) {
+    pdfFooter(doc, doc.internal.getNumberOfPages(), 0);
+    doc.addPage();
+    y = 25;
+  }
+  
+  // Overall result
+  const allGrades = [];
+  let anyFail = false;
+  EX.forEach(ex => {
+    const runs = (participant.runs && participant.runs[ex.id]) || [];
+    if (runs.length > 0) {
+      const best = Math.min(...runs.map(r => r.grade));
+      if (best >= 4.5) anyFail = true;
+      else allGrades.push(best);
+    }
+  });
+  
+  const avgGrade = allGrades.length > 0 ? (allGrades.reduce((a,b)=>a+b,0) / allGrades.length) : null;
+  
+  y += 5;
+  doc.setFillColor(...COLORS.dark);
+  doc.rect(15, y, 180, 20, 'F');
+  doc.setTextColor(...COLORS.orange);
+  doc.setFontSize(8);
+  doc.setFont('helvetica', 'normal');
+  doc.text('GESAMTERGEBNIS', 19, y + 7);
+  
+  doc.setTextColor(255, 255, 255);
+  doc.setFontSize(18);
+  doc.setFont('helvetica', 'bold');
+  if (anyFail) {
+    doc.text('NICHT BESTANDEN', 19, y + 16);
+  } else if (avgGrade !== null) {
+    doc.text(`Ø ${avgGrade.toFixed(2)}  ·  ${getGradeLetter(avgGrade)}`, 19, y + 16);
+  } else {
+    doc.text('—', 19, y + 16);
+  }
+  
+  y += 28;
+  
+  // Signature
+  signatureBlock(doc, y, participant.name);
+  
+  // Footer on all pages
+  const totalPages = doc.internal.getNumberOfPages();
+  for (let i = 1; i <= totalPages; i++) {
+    doc.setPage(i);
+    pdfFooter(doc, i, totalPages);
+  }
+  
+  const filename = `DriverAI_${participant.name.replace(/\s/g, '_')}_${state.session.date}.pdf`;
+  
+  if (returnBlob) {
+    return { blob: doc.output('blob'), filename };
+  }
+  
+  doc.save(filename);
+}
+
+function generateAllParticipantPDFs() {
+  if (!state.session || state.session.participants.length === 0) {
+    alert('Keine Teilnehmer in der Session.');
+    return;
+  }
+  if (!confirm(`${state.session.participants.length} PDF-Dateien generieren (eine pro Teilnehmer)?`)) return;
+  
+  state.session.participants.forEach((p, i) => {
+    setTimeout(() => generateParticipantPDF(p), i * 300);
+  });
+}
+
+// ============================================================================
+// Share / Email
+// ============================================================================
+async function shareSessionPDF() {
+  if (!state.session) return;
+  
+  const result = generateOverviewPDF(true);
+  if (!result) return;
+  
+  const file = new File([result.blob], result.filename, { type: 'application/pdf' });
+  const progName = (PROGRAMS[state.session.program] || PROGRAMS.basis).name;
+  
+  const shareData = {
+    title: 'Driver.AI Trainings-Auswertung',
+    text: `Trainings-Auswertung ${progName}\nDatum: ${state.session.date}\nOrt: ${state.session.location}\nTrainer: ${state.session.trainer}\n${state.session.participants.length} Teilnehmer\n\n— Generiert mit Driver.AI`,
+    files: [file]
+  };
+  
+  // Try Web Share API with files (modern mobile)
+  if (navigator.canShare && navigator.canShare(shareData)) {
+    try {
+      await navigator.share(shareData);
+      return;
+    } catch (e) {
+      if (e.name !== 'AbortError') console.error(e);
+    }
+  }
+  
+  // Fallback: mailto with prefilled body
+  const recipient = state.session.email || '';
+  const subject = encodeURIComponent(`Trainings-Auswertung ${state.session.date} · ${state.session.location}`);
+  const body = encodeURIComponent(
+    `Hallo,\n\n` +
+    `anbei die Trainings-Auswertung:\n\n` +
+    `Programm: ${progName}\n` +
+    `Datum: ${state.session.date}\n` +
+    `Ort: ${state.session.location}\n` +
+    `Trainer: ${state.session.trainer}\n` +
+    `Teilnehmer: ${state.session.participants.length}\n\n` +
+    `Das PDF wurde separat heruntergeladen. Bitte als Anhang hinzufügen.\n\n` +
+    `Mit freundlichen Grüßen\n${state.session.trainer}\n\n` +
+    `— Generiert mit Driver.AI`
+  );
+  
+  // Download PDF first
+  const url = URL.createObjectURL(result.blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = result.filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+  
+  // Then open mail client
+  setTimeout(() => {
+    const mailto = `mailto:${recipient}?subject=${subject}&body=${body}`;
+    window.location.href = mailto;
+    
+    setTimeout(() => {
+      alert(
+        'PDF wurde heruntergeladen!\n\n' +
+        'Der Mail-Client öffnet sich automatisch.\n' +
+        'Bitte das heruntergeladene PDF als Anhang manuell hinzufügen.\n\n' +
+        '(Hinweis: Direkte PDF-Anhänge sind aus Browser-Sicherheitsgründen nicht möglich. Auf modernen Smartphones ist das "Teilen"-Menü die bessere Option.)'
+      );
+    }, 500);
+  }, 300);
+}
+
 function exportJSON() {
   const json = JSON.stringify(state.session, null, 2);
   const blob = new Blob([json], {type:'application/json'});
@@ -1140,17 +2212,29 @@ function confirmReset() {
 // ============================================================================
 // DEMO-MODE QUICK-FILL HELPERS
 // ============================================================================
+
+// Per-exercise dummy reference values (works for any program)
+function getDummyRef(ex) {
+  if (ex.refType === 'time') return 7.0 + Math.random() * 1.5;  // 7.0-8.5s
+  if (ex.refType === 'g') return (ex.refValue || 0.8) + Math.random() * 0.1;  // 0.8-0.9g
+  return (ex.refValue || 60) + Math.round(Math.random() * 2);  // 60-+2 km/h
+}
+
 function fillDummyRefs() {
   if (!state.session) return;
-  if (!confirm('Alle 4 Übungen mit realistischen Dummy-Referenzwerten füllen?')) return;
-  state.session.references = {
-    slalom: 7.20,        // 7.20 Sekunden Referenzzeit
-    hsb: 162,            // 162 km/h Eintrittsspeed (trocken)
-    lc: 71,              // 71 km/h Spurwechsel
-    ba: 70               // 70 km/h Bremsen und Ausweichen
-  };
+  if (!confirm('Alle Übungen mit realistischen Dummy-Referenzwerten füllen?')) return;
+  const refs = {};
+  const msgLines = [];
+  EX.forEach(ex => {
+    const v = getDummyRef(ex);
+    refs[ex.id] = v;
+    if (ex.refType === 'time') msgLines.push(`• ${ex.name}: ${v.toFixed(2)} s`);
+    else if (ex.refType === 'g') msgLines.push(`• ${ex.name}: ${v.toFixed(1)} g`);
+    else msgLines.push(`• ${ex.name}: ${Math.round(v)} km/h`);
+  });
+  state.session.references = refs;
   save();
-  alert('Dummy-Referenzen gesetzt:\n\n• Slalom: 7.20 s\n• Highspeed: 162 km/h\n• Spurwechsel: 71 km/h\n• Brems+Ausweichen: 70 km/h\n\nDer Teilnehmer-Modus ist jetzt freigeschaltet!');
+  alert('Dummy-Referenzen gesetzt:\n\n' + msgLines.join('\n') + '\n\nDer Teilnehmer-Modus ist jetzt freigeschaltet!');
   enterDashboard();
 }
 
@@ -1164,32 +2248,91 @@ function fillDummyRuns() {
 
   const qualities = ['good', 'good', 'warn', 'warn', 'bad'];
   state.session.participants.forEach((p, idx) => {
-    EX.forEach(ex => {
-      const q = qualities[(idx + EX.indexOf(ex)) % qualities.length];
+    EX.forEach((ex, exIdx) => {
+      const q = qualities[(idx + exIdx) % qualities.length];
       const ref = state.session.references[ex.id];
+      
       let dur, stats;
-      if (q === 'good') {
-        dur = ex.refType === 'time' ? ref + 1.5 : 7.0;
-        stats = {duration: dur, maxSpeed: ex.refType === 'speed' ? ex.refValue : 50, minLongG: -1.0, maxLongG: 0.4, maxLatGAbs: 0.7, maxYawAbs: 25, endSpeed: 0, samples: 200};
-      } else if (q === 'warn') {
-        dur = ex.refType === 'time' ? ref + 3.5 : 7.0;
-        stats = {duration: dur, maxSpeed: ex.refType === 'speed' ? ex.refValue - 2 : 48, minLongG: -0.75, maxLongG: 0.3, maxLatGAbs: 0.5, maxYawAbs: 20, endSpeed: 0.5, samples: 200};
+      
+      const prog = state.session.program || 'basis';
+      const isAdvanced = prog === 'super' || prog === 'track';
+      const isTrack = prog === 'track';
+      
+      // Generate realistic stats based on exercise type and quality
+      if (ex.refType === 'time') {
+        const baseRef = ref || 7.0;
+        if (q === 'good') {
+          dur = baseRef + 1.5;
+          const maxG = isTrack ? 1.05 : (isAdvanced ? 0.92 : 0.85);
+          const topSpeed = isTrack ? 145 : (isAdvanced ? 110 : 80);
+          stats = {duration:dur, maxSpeed:topSpeed, minSpeed:topSpeed-25, minLongG:-1.1, maxLongG:0.4, maxLatGAbs:maxG, maxYawAbs:25, endSpeed:0, samples:200};
+        } else if (q === 'warn') {
+          dur = baseRef + 3.5;
+          const maxG = isTrack ? 0.85 : (isAdvanced ? 0.72 : 0.6);
+          const topSpeed = isTrack ? 130 : (isAdvanced ? 100 : 75);
+          stats = {duration:dur, maxSpeed:topSpeed, minSpeed:topSpeed-30, minLongG:-0.85, maxLongG:0.3, maxLatGAbs:maxG, maxYawAbs:80, endSpeed:0.5, samples:200};
+        } else {
+          dur = baseRef + 6.0;
+          const maxG = isTrack ? 0.6 : (isAdvanced ? 0.5 : 0.3);
+          const topSpeed = isTrack ? 110 : (isAdvanced ? 80 : 60);
+          stats = {duration:dur, maxSpeed:topSpeed, minSpeed:topSpeed-40, minLongG:-0.5, maxLongG:0.2, maxLatGAbs:maxG, maxYawAbs:15, endSpeed:5, samples:200};
+        }
+      } else if (ex.refType === 'g') {
+        dur = 8.0;
+        if (q === 'good') {
+          const targetG = ex.refValue || 0.8;
+          stats = {duration:dur, maxSpeed:isAdvanced?80:65, minSpeed:isAdvanced?77:60, minLongG:-0.3, maxLongG:0.3, maxLatGAbs:targetG+0.02, maxYawAbs:80, endSpeed:isAdvanced?75:55, samples:200};
+        } else if (q === 'warn') {
+          const targetG = (ex.refValue || 0.8) - 0.2;
+          stats = {duration:dur, maxSpeed:isAdvanced?70:60, minSpeed:isAdvanced?65:50, minLongG:-0.4, maxLongG:0.2, maxLatGAbs:targetG, maxYawAbs:150, endSpeed:isAdvanced?60:45, samples:200};
+        } else {
+          stats = {duration:dur, maxSpeed:55, minSpeed:35, minLongG:-0.6, maxLongG:0.1, maxLatGAbs:0.45, maxYawAbs:380, endSpeed:0, samples:200};
+        }
       } else {
-        dur = ex.refType === 'time' ? ref + 6.0 : 7.0;
-        stats = {duration: dur, maxSpeed: ex.refType === 'speed' ? ex.refValue - 10 : 30, minLongG: -0.5, maxLongG: 0.2, maxLatGAbs: 0.3, maxYawAbs: 15, endSpeed: 5, samples: 200};
+        dur = 6.0;
+        if (q === 'good') {
+          stats = {duration:dur, maxSpeed:ex.refValue, minSpeed:ex.refValue-3, minLongG:isTrack?-1.1:-1.0, maxLongG:0.4, maxLatGAbs:isTrack?0.9:0.5, maxYawAbs:25, endSpeed:0, samples:200};
+        } else if (q === 'warn') {
+          stats = {duration:dur, maxSpeed:ex.refValue-2, minSpeed:ex.refValue-8, minLongG:-0.75, maxLongG:0.3, maxLatGAbs:0.4, maxYawAbs:80, endSpeed:0.5, samples:200};
+        } else {
+          stats = {duration:dur, maxSpeed:ex.refValue-15, minSpeed:ex.refValue-25, minLongG:-0.5, maxLongG:0.2, maxLatGAbs:0.3, maxYawAbs:15, endSpeed:5, samples:200};
+        }
       }
 
       // Evaluate criteria
       const evals = {};
+      const trainerInputs = {};
       let sw = 0, sf = 0, ko = false;
       ex.criteria.forEach(c => {
         let passed;
-        if (c.source === 'auto') passed = autoEval(c, ex, stats);
-        else if (c.source === 'time') passed = dur <= ref + ex.tolerance;
-        else passed = (q !== 'bad');  // pylons: fail only on bad
+        if (c.source === 'auto') {
+          passed = autoEval(c, ex, stats);
+        } else if (c.source === 'time') {
+          passed = dur <= (ref + ex.tolerance);
+        } else if (c.source === 'trainer-3') {
+          const verdict = q === 'good' ? 'pass' : (q === 'warn' ? 'partial' : 'fail');
+          trainerInputs[c.id] = verdict;
+          passed = verdict !== 'fail';
+        } else {
+          // 'trainer' (pylons): fail only on bad
+          passed = (q !== 'bad');
+        }
         evals[c.id] = passed;
-        const note = passed ? c.pass : c.fail;
-        let f = c.weight === 'bns' ? 3 : 1;
+        
+        // Determine note
+        let note;
+        if (c.source === 'trainer-3' && trainerInputs[c.id]) {
+          const input = trainerInputs[c.id];
+          if (input === 'pass') note = 2.0;
+          else if (input === 'partial') note = 3.0;
+          else note = 5.0;
+        } else {
+          note = passed ? c.pass : c.fail;
+        }
+        
+        let f = 1;
+        if (c.weight === 'bns') f = 3;
+        if (c.weight === 'imp') f = 2;
         if (c.weight === 'ko' && !passed) ko = true;
         sw += note * f; sf += f;
       });
@@ -1200,8 +2343,10 @@ function fillDummyRuns() {
         duration: dur,
         stats: stats,
         evals: evals,
+        trainerInputs: trainerInputs,
         grade: grade,
         exerciseId: ex.id,
+        pylonCount: q === 'bad' ? 1 : 0,
         timestamp: Date.now()
       });
     });
