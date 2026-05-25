@@ -7,6 +7,8 @@
 <title>Driver.AI — Fahrtraining</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.1/jspdf.plugin.autotable.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
 <style>
 * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
 html, body { background: #0a0d12; color: #e8edf2; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; min-height: 100vh; overscroll-behavior: none; }
@@ -212,6 +214,17 @@ html, body { background: #0a0d12; color: #e8edf2; font-family: -apple-system, Bl
       <div class="card-arrow">›</div>
     </div>
   </div>
+
+  <div class="card pending" onclick="startQRScanRefs()">
+    <div class="card-row">
+      <div class="card-info">
+        <div class="card-num">OPTION 04</div>
+        <div class="card-title">QR-Code scannen (Teilnehmer)</div>
+        <div class="card-meta">Referenzen vom Trainer empfangen</div>
+      </div>
+      <div class="card-arrow">›</div>
+    </div>
+  </div>
 </div>
 
 <!-- SESSION SETUP -->
@@ -274,6 +287,12 @@ html, body { background: #0a0d12; color: #e8edf2; font-family: -apple-system, Bl
   <button class="btn" onclick="enterTrainerMode()">◆ Trainer-Modus: Referenzen aufzeichnen</button>
   <button class="btn green" id="participantBtn" onclick="enterParticipantMode()">▶ Teilnehmer-Modus: Durchläufe</button>
   <button class="btn secondary" onclick="showOverview()">📊 Übersicht / Ergebnisse</button>
+  
+  <div style="margin-top: 18px; padding: 14px; background: #11151c; border: 1px solid #232a35; border-left: 4px solid #ff4500;">
+    <div style="font-size: 11px; letter-spacing: 0.15em; color: #ff4500; font-family: 'Menlo', monospace; margin-bottom: 12px;">▸ QR-CODE SYNC</div>
+    <button class="btn secondary" onclick="showQRShareRefs()" style="margin-bottom: 6px;">📤 Referenzen teilen (an Teilnehmer)</button>
+    <button class="btn secondary" onclick="startQRScanResults()">📥 Ergebnisse empfangen (von Teilnehmer)</button>
+  </div>
 
   <div id="demoQuickBox" style="display:none; margin-top: 16px;">
     <div class="demo-banner">DEMO-MODUS · Schnell-Setup zum Testen</div>
@@ -288,6 +307,11 @@ html, body { background: #0a0d12; color: #e8edf2; font-family: -apple-system, Bl
   <div class="screen-title">Teilnehmer wählen</div>
   <div class="screen-sub">Wer fährt jetzt?</div>
   <div id="pSelectList"></div>
+  
+  <div style="margin-top: 18px; padding: 14px; background: #11151c; border: 1px solid #232a35; border-left: 4px solid #ff4500;">
+    <div style="font-size: 11px; letter-spacing: 0.15em; color: #ff4500; font-family: 'Menlo', monospace; margin-bottom: 12px;">▸ ERGEBNISSE AN TRAINER SENDEN</div>
+    <button class="btn" onclick="showQRShareResults()">📤 Meine Ergebnisse per QR-Code teilen</button>
+  </div>
 </div>
 
 <!-- EXERCISES -->
@@ -411,6 +435,94 @@ html, body { background: #0a0d12; color: #e8edf2; font-family: -apple-system, Bl
   
   <button class="btn secondary" onclick="exportJSON()" style="margin-top: 14px;">📥 Daten exportieren (JSON)</button>
   <button class="btn secondary" onclick="confirmReset()" style="margin-top: 8px;">🗑 Session löschen</button>
+</div>
+
+<!-- QR SHARE: Trainer zeigt Referenzen -->
+<div class="screen" id="screen-qr-share-refs">
+  <button class="back-btn" onclick="showScreen('screen-dashboard')">‹ Zurück</button>
+  <div class="screen-title">Referenzen teilen</div>
+  <div class="screen-sub">Teilnehmer scannen den QR-Code mit ihrer App</div>
+  
+  <div class="info-box">
+    <strong>◆ Anleitung für Teilnehmer</strong><br>
+    1. App öffnen<br>
+    2. "QR-Code scannen" wählen<br>
+    3. Diesen Code scannen
+  </div>
+  
+  <div id="qrRefsContainer" style="background: white; padding: 24px; margin: 16px 0; display: flex; flex-direction: column; align-items: center; border: 1px solid #232a35;">
+    <div id="qrRefsCanvas"></div>
+    <div id="qrRefsInfo" style="color: #1a2230; font-size: 11px; margin-top: 12px; font-family: 'Menlo', monospace; letter-spacing: 0.05em;">—</div>
+  </div>
+  
+  <button class="btn secondary" onclick="generateRefsQR()">↻ QR-Code neu generieren</button>
+</div>
+
+<!-- QR SCAN: Teilnehmer empfängt Referenzen -->
+<div class="screen" id="screen-qr-scan-refs">
+  <button class="back-btn" onclick="stopQRScanner(); showScreen('screen-home')">‹ Zurück</button>
+  <div class="screen-title">Referenzen empfangen</div>
+  <div class="screen-sub">QR-Code vom Trainer-Smartphone scannen</div>
+  
+  <div class="info-box">
+    <strong>◆ So funktioniert's</strong><br>
+    Trainer-Smartphone zeigt einen QR-Code mit den Referenzen für heute.<br>
+    Auf den Code zielen — die App erkennt ihn automatisch.
+  </div>
+  
+  <div id="qrScannerContainer" style="margin: 16px 0; background: black; min-height: 300px; position: relative;">
+    <div id="qr-reader" style="width: 100%;"></div>
+  </div>
+  
+  <div id="qrScanStatus" style="font-size: 12px; color: #8b95a3; font-family: 'Menlo', monospace; margin-top: 12px; text-align: center;">Kamera wird gestartet...</div>
+</div>
+
+<!-- QR SHARE: Teilnehmer zeigt Ergebnisse -->
+<div class="screen" id="screen-qr-share-results">
+  <button class="back-btn" onclick="showScreen('screen-pselect')">‹ Zurück</button>
+  <div class="screen-title">Ergebnisse an Trainer senden</div>
+  <div class="screen-sub" id="qrShareResultsSub">—</div>
+  
+  <div class="info-box">
+    <strong>◆ Anleitung</strong><br>
+    Trainer scannt diesen Code mit seinem Smartphone.<br>
+    Bei großen Datenmengen werden mehrere QR-Codes nacheinander angezeigt.
+  </div>
+  
+  <div id="qrResultsContainer" style="background: white; padding: 24px; margin: 16px 0; display: flex; flex-direction: column; align-items: center; border: 1px solid #232a35;">
+    <div id="qrResultsCanvas"></div>
+    <div id="qrResultsInfo" style="color: #1a2230; font-size: 11px; margin-top: 12px; font-family: 'Menlo', monospace; letter-spacing: 0.05em;">—</div>
+  </div>
+  
+  <div id="qrResultsNav" style="display: none; gap: 6px; margin-top: 8px;">
+    <button class="btn secondary small" onclick="prevResultQR()" id="qrPrevBtn">‹ Vorheriger</button>
+    <button class="btn secondary small" onclick="nextResultQR()" id="qrNextBtn">Nächster ›</button>
+  </div>
+  
+  <button class="btn secondary" onclick="generateResultsQR()">↻ QR-Codes neu generieren</button>
+</div>
+
+<!-- QR SCAN: Trainer empfängt Ergebnisse -->
+<div class="screen" id="screen-qr-scan-results">
+  <button class="back-btn" onclick="stopQRScanner(); showScreen('screen-dashboard')">‹ Zurück</button>
+  <div class="screen-title">Ergebnisse empfangen</div>
+  <div class="screen-sub" id="qrScanResultsSub">QR-Code vom Teilnehmer scannen</div>
+  
+  <div class="info-box">
+    <strong>◆ So funktioniert's</strong><br>
+    Teilnehmer-Smartphone zeigt seine Ergebnisse als QR-Code.<br>
+    Bei großen Datenmengen mehrere Codes nacheinander scannen.
+  </div>
+  
+  <div id="qrScannerContainer2" style="margin: 16px 0; background: black; min-height: 300px; position: relative;">
+    <div id="qr-reader-2" style="width: 100%;"></div>
+  </div>
+  
+  <div id="qrScanResultsStatus" style="font-size: 12px; color: #8b95a3; font-family: 'Menlo', monospace; margin-top: 12px; text-align: center;">Kamera wird gestartet...</div>
+  
+  <div id="qrScanResultsProgress" style="display:none; margin-top: 12px; padding: 12px; background: #11151c; border: 1px solid #232a35; font-size: 12px;">
+    <div id="qrScanResultsPart">—</div>
+  </div>
 </div>
 
 </div>
@@ -2354,6 +2466,311 @@ function fillDummyRuns() {
   save();
   alert(`Fertig! Für jeden Teilnehmer wurde 1 Durchlauf pro Übung simuliert.\nGehe zu "Übersicht" um die Tabelle zu sehen.`);
   enterDashboard();
+}
+
+// ============================================================================
+// QR CODE SYNC (Trainer ↔ Teilnehmer)
+// ============================================================================
+let qrScanner = null;
+let qrResultsData = null;
+let qrResultsIndex = 0;
+let qrReceivedParts = {};
+
+function showQRShareRefs() {
+  if (!state.session) { alert('Bitte zuerst eine Session anlegen.'); return; }
+  const refCount = Object.keys(state.session.references).length;
+  if (refCount === 0) { alert('Bitte zuerst Trainer-Referenzen aufzeichnen.'); return; }
+  showScreen('screen-qr-share-refs');
+  setTimeout(generateRefsQR, 100);
+}
+
+function generateRefsQR() {
+  if (!window.QRCode) { alert('QR-Code-Library noch nicht geladen.'); return; }
+  
+  const payload = {
+    t: 'refs', v: 1,
+    s: state.session.id, d: state.session.date, l: state.session.location,
+    tr: state.session.trainer, p: state.session.program,
+    r: state.session.references,
+    ps: state.session.participants.map(p => ({id: p.id, n: p.name}))
+  };
+  
+  const json = JSON.stringify(payload);
+  const container = document.getElementById('qrRefsCanvas');
+  container.innerHTML = '';
+  
+  QRCode.toCanvas(json, {
+    width: 280, margin: 2, errorCorrectionLevel: 'M',
+    color: { dark: '#1a2230', light: '#ffffff' }
+  }, function(err, canvas) {
+    if (err) { container.innerHTML = '<div style="color:#c82e4e;">Fehler: ' + err.message + '</div>'; return; }
+    container.appendChild(canvas);
+    document.getElementById('qrRefsInfo').textContent = 
+      `${state.session.location} · ${state.session.participants.length} TN · ${Object.keys(state.session.references).length} REFS · ${json.length} BYTES`;
+  });
+}
+
+function startQRScanRefs() {
+  if (state.session && state.session.participants && Object.keys(state.session.references || {}).length > 0) {
+    if (!confirm('Es gibt bereits eine aktive Session. Beim Scannen wird die alte überschrieben. Fortfahren?')) return;
+  }
+  showScreen('screen-qr-scan-refs');
+  setTimeout(() => startScanner('qr-reader', onScanRefsSuccess, 'qrScanStatus'), 200);
+}
+
+function startScanner(elementId, onSuccess, statusId) {
+  if (!window.Html5Qrcode) {
+    document.getElementById(statusId).textContent = 'QR-Scanner-Library noch nicht geladen';
+    document.getElementById(statusId).style.color = '#c82e4e';
+    return;
+  }
+  stopQRScanner();
+  qrScanner = new Html5Qrcode(elementId);
+  const config = { fps: 10, qrbox: { width: 250, height: 250 } };
+  qrScanner.start(
+    { facingMode: "environment" }, config,
+    (decoded) => { onSuccess(decoded); },
+    (errMsg) => {}
+  ).then(() => {
+    document.getElementById(statusId).textContent = 'Kamera aktiv — auf QR-Code zielen';
+    document.getElementById(statusId).style.color = '#00ff88';
+  }).catch(err => {
+    document.getElementById(statusId).textContent = 'Kamera-Fehler: ' + (err.message || err);
+    document.getElementById(statusId).style.color = '#c82e4e';
+  });
+}
+
+function stopQRScanner() {
+  if (qrScanner) {
+    try {
+      qrScanner.stop().then(() => { qrScanner.clear(); qrScanner = null; }).catch(() => { qrScanner = null; });
+    } catch(e) { qrScanner = null; }
+  }
+}
+
+function onScanRefsSuccess(decoded) {
+  try {
+    const payload = JSON.parse(decoded);
+    if (payload.t !== 'refs') {
+      document.getElementById('qrScanStatus').textContent = 'Falscher QR-Code-Typ';
+      document.getElementById('qrScanStatus').style.color = '#c82e4e';
+      return;
+    }
+    stopQRScanner();
+    state.session = {
+      id: payload.s, date: payload.d, location: payload.l, trainer: payload.tr,
+      program: payload.p, email: '', references: payload.r,
+      participants: payload.ps.map(p => ({id: p.id, name: p.n, runs: {}})),
+      createdAt: Date.now(), fromTrainerQR: true
+    };
+    save();
+    document.getElementById('qrScanStatus').textContent = 
+      `✓ Empfangen! ${state.session.location} · ${state.session.participants.length} Teilnehmer`;
+    document.getElementById('qrScanStatus').style.color = '#00ff88';
+    setTimeout(() => {
+      alert('Referenzen empfangen!\n\nSession: ' + state.session.location + '\nProgramm: ' + (PROGRAMS[state.session.program] || PROGRAMS.basis).name + '\n\nJetzt: Teilnehmer auswählen und Übungen fahren.');
+      refreshHome();
+      enterDashboard();
+    }, 600);
+  } catch(e) {
+    document.getElementById('qrScanStatus').textContent = 'Ungültiger QR-Code: ' + e.message;
+    document.getElementById('qrScanStatus').style.color = '#c82e4e';
+  }
+}
+
+function showQRShareResults() {
+  if (!state.session) return;
+  const participantsWithRuns = state.session.participants.filter(p => 
+    p.runs && Object.keys(p.runs).length > 0 && Object.values(p.runs).some(r => r.length > 0)
+  );
+  if (participantsWithRuns.length === 0) {
+    alert('Noch keine Durchläufe gespeichert. Bitte erst Übungen fahren.');
+    return;
+  }
+  const p = participantsWithRuns[0];
+  document.getElementById('qrShareResultsSub').textContent = 
+    `${p.name} · ${Object.values(p.runs).reduce((sum, runs) => sum + runs.length, 0)} Durchläufe gesamt`;
+  showScreen('screen-qr-share-results');
+  setTimeout(() => generateResultsQR(p), 100);
+}
+
+function generateResultsQR(participant) {
+  if (!participant) {
+    const p = state.session.participants.find(x => 
+      x.runs && Object.keys(x.runs).length > 0 && Object.values(x.runs).some(r => r.length > 0)
+    );
+    if (!p) return;
+    participant = p;
+  }
+  
+  const compactRuns = {};
+  Object.keys(participant.runs).forEach(exId => {
+    compactRuns[exId] = participant.runs[exId].map(r => ({
+      d: parseFloat(r.duration.toFixed(2)),
+      s: {
+        ms: Math.round(r.stats.maxSpeed),
+        mn: Math.round(r.stats.minSpeed || 0),
+        ml: parseFloat((r.stats.minLongG || 0).toFixed(2)),
+        lg: parseFloat((r.stats.maxLatGAbs || 0).toFixed(2)),
+        yw: Math.round(r.stats.maxYawAbs || 0),
+        es: parseFloat((r.stats.endSpeed || 0).toFixed(1))
+      },
+      e: r.evals, ti: r.trainerInputs || {},
+      g: parseFloat(r.grade.toFixed(2)),
+      pc: r.pylonCount, pp: r.pylonPending || false, tp: r.trainerPending || false
+    }));
+  });
+  
+  const payload = {
+    t: 'res', v: 1,
+    s: state.session.id, p: participant.id, n: participant.name,
+    r: compactRuns
+  };
+  
+  const json = JSON.stringify(payload);
+  const MAX_SIZE = 2200;
+  
+  if (json.length <= MAX_SIZE) {
+    qrResultsData = [json];
+  } else {
+    const chunks = [];
+    const chunkSize = MAX_SIZE - 80;
+    const totalParts = Math.ceil(json.length / chunkSize);
+    for (let i = 0; i < totalParts; i++) {
+      const chunk = json.substring(i * chunkSize, (i + 1) * chunkSize);
+      chunks.push(JSON.stringify({
+        t: 'res-part', v: 1,
+        id: payload.s + '_' + payload.p,
+        i: i, n: totalParts, d: chunk
+      }));
+    }
+    qrResultsData = chunks;
+  }
+  
+  qrResultsIndex = 0;
+  renderCurrentResultsQR();
+  
+  const nav = document.getElementById('qrResultsNav');
+  nav.style.display = qrResultsData.length > 1 ? 'grid' : 'none';
+  nav.style.gridTemplateColumns = '1fr 1fr';
+}
+
+function renderCurrentResultsQR() {
+  const container = document.getElementById('qrResultsCanvas');
+  container.innerHTML = '';
+  const data = qrResultsData[qrResultsIndex];
+  
+  QRCode.toCanvas(data, {
+    width: 280, margin: 2, errorCorrectionLevel: 'M',
+    color: { dark: '#1a2230', light: '#ffffff' }
+  }, function(err, canvas) {
+    if (err) { container.innerHTML = '<div style="color:#c82e4e;">Fehler: ' + err.message + '</div>'; return; }
+    container.appendChild(canvas);
+    if (qrResultsData.length > 1) {
+      document.getElementById('qrResultsInfo').textContent = 
+        `TEIL ${qrResultsIndex + 1} VON ${qrResultsData.length} · ${data.length} BYTES`;
+    } else {
+      document.getElementById('qrResultsInfo').textContent = `${data.length} BYTES`;
+    }
+  });
+}
+
+function prevResultQR() {
+  if (qrResultsIndex > 0) { qrResultsIndex--; renderCurrentResultsQR(); }
+}
+
+function nextResultQR() {
+  if (qrResultsIndex < qrResultsData.length - 1) { qrResultsIndex++; renderCurrentResultsQR(); }
+}
+
+function startQRScanResults() {
+  if (!state.session) {
+    alert('Bitte zuerst eine Session anlegen, damit die Ergebnisse zugeordnet werden können.');
+    return;
+  }
+  qrReceivedParts = {};
+  showScreen('screen-qr-scan-results');
+  document.getElementById('qrScanResultsProgress').style.display = 'none';
+  setTimeout(() => startScanner('qr-reader-2', onScanResultsSuccess, 'qrScanResultsStatus'), 200);
+}
+
+function onScanResultsSuccess(decoded) {
+  try {
+    const payload = JSON.parse(decoded);
+    if (payload.t === 'res') {
+      processFullResults(payload);
+    } else if (payload.t === 'res-part') {
+      if (!qrReceivedParts[payload.id]) {
+        qrReceivedParts[payload.id] = { parts: {}, total: payload.n };
+      }
+      qrReceivedParts[payload.id].parts[payload.i] = payload.d;
+      const received = Object.keys(qrReceivedParts[payload.id].parts).length;
+      const total = qrReceivedParts[payload.id].total;
+      document.getElementById('qrScanResultsProgress').style.display = 'block';
+      document.getElementById('qrScanResultsPart').innerHTML = 
+        `<strong style="color:#ff4500;">Teil ${payload.i + 1} von ${total}</strong> empfangen<br>` +
+        `<span style="color:#8b95a3;">Empfangen: ${received} / ${total}</span>`;
+      if (received === total) {
+        let fullJson = '';
+        for (let i = 0; i < total; i++) fullJson += qrReceivedParts[payload.id].parts[i];
+        try {
+          const fullPayload = JSON.parse(fullJson);
+          processFullResults(fullPayload);
+        } catch(e) {
+          document.getElementById('qrScanResultsStatus').textContent = 'Fehler beim Zusammenfügen: ' + e.message;
+          document.getElementById('qrScanResultsStatus').style.color = '#c82e4e';
+        }
+      }
+    } else {
+      document.getElementById('qrScanResultsStatus').textContent = 'Falscher QR-Code-Typ';
+      document.getElementById('qrScanResultsStatus').style.color = '#c82e4e';
+    }
+  } catch(e) {
+    document.getElementById('qrScanResultsStatus').textContent = 'Ungültiger QR-Code: ' + e.message;
+    document.getElementById('qrScanResultsStatus').style.color = '#c82e4e';
+  }
+}
+
+function processFullResults(payload) {
+  let p = state.session.participants.find(x => x.id === payload.p);
+  if (!p) p = state.session.participants.find(x => x.name === payload.n);
+  if (!p) {
+    document.getElementById('qrScanResultsStatus').textContent = 
+      `Teilnehmer "${payload.n}" nicht in der Session gefunden`;
+    document.getElementById('qrScanResultsStatus').style.color = '#c82e4e';
+    return;
+  }
+  
+  p.runs = p.runs || {};
+  Object.keys(payload.r).forEach(exId => {
+    p.runs[exId] = payload.r[exId].map(r => ({
+      duration: r.d,
+      stats: {
+        duration: r.d, maxSpeed: r.s.ms, minSpeed: r.s.mn, minLongG: r.s.ml,
+        maxLatGAbs: r.s.lg, maxYawAbs: r.s.yw, endSpeed: r.s.es, samples: 0
+      },
+      evals: r.e, trainerInputs: r.ti, grade: r.g,
+      pylonCount: r.pc, pylonPending: r.pp, trainerPending: r.tp,
+      exerciseId: exId, timestamp: Date.now()
+    }));
+  });
+  
+  save();
+  stopQRScanner();
+  
+  document.getElementById('qrScanResultsStatus').textContent = `✓ Ergebnisse von ${p.name} empfangen`;
+  document.getElementById('qrScanResultsStatus').style.color = '#00ff88';
+  
+  setTimeout(() => {
+    const total = Object.values(p.runs).reduce((sum, runs) => sum + runs.length, 0);
+    if (confirm(`Ergebnisse von ${p.name} empfangen!\n\n${total} Durchläufe importiert.\n\n[OK] = Weiteren Teilnehmer empfangen\n[Abbrechen] = Zurück zum Dashboard`)) {
+      qrReceivedParts = {};
+      document.getElementById('qrScanResultsProgress').style.display = 'none';
+      setTimeout(() => startScanner('qr-reader-2', onScanResultsSuccess, 'qrScanResultsStatus'), 200);
+    } else {
+      showScreen('screen-dashboard');
+    }
+  }, 600);
 }
 
 load();
