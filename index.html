@@ -806,6 +806,7 @@ html, body { background: #0a0d12; color: #e8edf2; font-family: -apple-system, Bl
 
   <button class="btn" onclick="enterTrainerMode()">◆ Trainer-Modus: Referenzen aufzeichnen</button>
   <button class="btn green" id="participantBtn" onclick="enterParticipantMode()">▶ Teilnehmer-Modus: Durchläufe</button>
+  <button class="btn" onclick="showBulkEval()" style="background: #c09000;">📝 Bewertungen nachtragen</button>
   <button class="btn secondary" onclick="showOverview()">📊 Übersicht / Ergebnisse</button>
   
   <div style="margin-top: 18px; padding: 14px; background: #11151c; border: 1px solid #232a35; border-left: 4px solid #ff4500;">
@@ -944,6 +945,25 @@ html, body { background: #0a0d12; color: #e8edf2; font-family: -apple-system, Bl
     <div id="critList"></div>
     <button class="btn" onclick="continueEval()" style="margin-top: 14px;">Weiter</button>
   </div>
+</div>
+
+<!-- BULK EVALUATION: Pylonen + Trainer-Bewertungen für ALLE Teilnehmer auf einmal -->
+<div class="screen" id="screen-bulk-eval">
+  <button class="back-btn" onclick="showScreen('screen-dashboard')">‹ Zurück</button>
+  <div class="screen-title">Bewertungen nachtragen</div>
+  <div class="screen-sub" id="bulkEvalSub">—</div>
+  
+  <div class="info-box warn">
+    <strong>◆ Anleitung</strong><br>
+    Hier alle Trainer-Eingaben pro Teilnehmer und Übung eintragen. Eingaben werden automatisch gespeichert.
+  </div>
+  
+  <div style="margin: 12px 0; display: flex; gap: 6px;">
+    <button class="btn secondary small" onclick="bulkEvalFilter='all'; renderBulkEval()" id="filterAllBtn" style="background: #ff4500;">Alle anzeigen</button>
+    <button class="btn secondary small" onclick="bulkEvalFilter='pending'; renderBulkEval()" id="filterPendingBtn">Nur unvollständige</button>
+  </div>
+  
+  <div id="bulkEvalContent"></div>
 </div>
 
 <!-- TRAINER REVIEW (Pylonen-Eingabe nachträglich) -->
@@ -1978,6 +1998,266 @@ function setReviewTrainer3(runIdx, critId, value) {
 function backFromReview() {
   showScreen('screen-pselect');
   enterParticipantMode();
+}
+
+// ============================================================================
+// BULK EVALUATION: Pylonen + Trainer-3-Stufen für ALLE Teilnehmer auf einmal
+// ============================================================================
+let bulkEvalFilter = 'all';  // 'all' or 'pending'
+
+function showBulkEval() {
+  if (!state.session) return;
+  
+  // Check if any participants have any runs
+  const anyRuns = state.session.participants.some(p => 
+    p.runs && Object.values(p.runs).some(r => r.length > 0)
+  );
+  
+  if (!anyRuns) {
+    alert('Keine Durchläufe zum Bewerten vorhanden.\n\nErst müssen Teilnehmer Übungen fahren oder Ergebnisse importiert werden.');
+    return;
+  }
+  
+  document.getElementById('bulkEvalSub').textContent = 
+    `${state.session.participants.length} Teilnehmer · ${EX.length} Übungen`;
+  
+  bulkEvalFilter = 'all';
+  updateBulkFilterButtons();
+  renderBulkEval();
+  showScreen('screen-bulk-eval');
+}
+
+function updateBulkFilterButtons() {
+  const allBtn = document.getElementById('filterAllBtn');
+  const pendingBtn = document.getElementById('filterPendingBtn');
+  if (bulkEvalFilter === 'all') {
+    allBtn.style.background = '#ff4500';
+    pendingBtn.style.background = '';
+  } else {
+    allBtn.style.background = '';
+    pendingBtn.style.background = '#ff4500';
+  }
+}
+
+function renderBulkEval() {
+  updateBulkFilterButtons();
+  const container = document.getElementById('bulkEvalContent');
+  container.innerHTML = '';
+  
+  state.session.participants.forEach(p => {
+    if (!p.runs || Object.keys(p.runs).length === 0) return;
+    
+    // Skip participant if no runs at all
+    const hasRuns = Object.values(p.runs).some(r => r.length > 0);
+    if (!hasRuns) return;
+    
+    // Check if this participant has any pending evaluations
+    let totalPending = 0;
+    let totalRuns = 0;
+    EX.forEach(ex => {
+      const runs = (p.runs && p.runs[ex.id]) || [];
+      totalRuns += runs.length;
+      runs.forEach(r => {
+        if (isTrainerPending(r)) totalPending++;
+      });
+    });
+    
+    // Filter
+    if (bulkEvalFilter === 'pending' && totalPending === 0) return;
+    
+    // Participant header
+    const partDiv = document.createElement('div');
+    partDiv.style.cssText = 'margin-top: 18px; padding: 14px; background: #11151c; border: 1px solid #232a35;';
+    
+    const status = totalPending === 0 
+      ? `<span style="color:#00a86b;">✓ Komplett bewertet (${totalRuns} Durchläufe)</span>`
+      : `<span style="color:#c09000;">⚠ ${totalPending} von ${totalRuns} Durchläufen offen</span>`;
+    
+    partDiv.innerHTML = `
+      <div style="font-size: 11px; letter-spacing: 0.15em; color: #ff4500; font-family: 'Menlo', monospace; margin-bottom: 6px;">TEILNEHMER</div>
+      <div style="font-size: 18px; color: white; font-weight: bold; margin-bottom: 4px;">${p.name}</div>
+      <div style="font-size: 12px;">${status}</div>
+    `;
+    container.appendChild(partDiv);
+    
+    // Exercise blocks for this participant
+    EX.forEach(ex => {
+      const runs = (p.runs && p.runs[ex.id]) || [];
+      if (runs.length === 0) return;
+      
+      // Skip if filter=pending and no pending runs
+      const pendingRuns = runs.filter(r => isTrainerPending(r));
+      if (bulkEvalFilter === 'pending' && pendingRuns.length === 0) return;
+      
+      const exDiv = document.createElement('div');
+      exDiv.style.cssText = 'margin-top: 8px; padding: 12px; background: #0a0d12; border: 1px solid #1a2230; border-left: 3px solid #ff4500;';
+      
+      const exHeader = document.createElement('div');
+      exHeader.style.cssText = 'margin-bottom: 10px;';
+      exHeader.innerHTML = `
+        <div style="font-size: 10px; letter-spacing: 0.15em; color: #8b95a3; font-family: 'Menlo', monospace;">ÜBUNG ${ex.num}</div>
+        <div style="font-size: 15px; color: white; font-weight: bold;">${ex.name}</div>
+      `;
+      exDiv.appendChild(exHeader);
+      
+      // Each run gets its own evaluation row
+      runs.forEach((run, runIdx) => {
+        const runDiv = document.createElement('div');
+        runDiv.style.cssText = 'margin-top: 10px; padding: 10px; background: #11151c; border: 1px solid #232a35;';
+        
+        // Run header with stats
+        let statsText;
+        if (ex.refType === 'time') {
+          statsText = `Zeit: ${run.duration.toFixed(2)}s`;
+        } else if (ex.refType === 'g') {
+          statsText = `Max Querbeschl.: ${(run.stats.maxLatGAbs || 0).toFixed(2)}g`;
+        } else {
+          statsText = `Max Speed: ${Math.round(run.stats.maxSpeed)} km/h`;
+        }
+        
+        const runHeader = document.createElement('div');
+        runHeader.style.cssText = 'display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;';
+        runHeader.innerHTML = `
+          <div style="font-size: 12px; color: #c0c8d4; font-family: 'Menlo', monospace;">DURCHLAUF ${runIdx + 1} · ${statsText}</div>
+          <div id="grade-${p.id}-${ex.id}-${runIdx}" style="font-size: 14px; color: #ff4500; font-weight: bold;">${run.trainerPending ? '⚠ offen' : 'Note ' + run.grade.toFixed(1)}</div>
+        `;
+        runDiv.appendChild(runHeader);
+        
+        // For each trainer criterion: show inputs
+        const trainerCriteria = ex.criteria.filter(c => c.source === 'trainer' || c.source === 'trainer-3');
+        
+        if (trainerCriteria.length === 0) {
+          const note = document.createElement('div');
+          note.style.cssText = 'font-size: 11px; color: #8b95a3; font-style: italic;';
+          note.textContent = 'Keine Trainer-Eingaben nötig (nur Sensor-Bewertung)';
+          runDiv.appendChild(note);
+        } else {
+          trainerCriteria.forEach(c => {
+            const critDiv = document.createElement('div');
+            critDiv.style.cssText = 'margin-top: 8px;';
+            
+            const label = document.createElement('div');
+            label.style.cssText = 'font-size: 12px; color: #c0c8d4; margin-bottom: 4px;';
+            label.textContent = c.name + (c.weight === 'bns' ? ' (Bonus 3×)' : c.weight === 'imp' ? ' (Wichtig 2×)' : c.weight === 'ko' ? ' (K.O.)' : '');
+            critDiv.appendChild(label);
+            
+            const btnRow = document.createElement('div');
+            btnRow.style.cssText = 'display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px;';
+            
+            if (c.source === 'trainer') {
+              // Pylonen-style: 0 / 1 / 2 / 3+
+              [0, 1, 2, 3].forEach(num => {
+                const btn = document.createElement('button');
+                btn.className = 'btn small';
+                const isSelected = run.pylonCount === num;
+                btn.style.cssText = `padding: 10px 4px; font-size: 14px; ${isSelected ? (num === 0 ? 'background: #00a86b;' : 'background: #c82e4e;') : 'background: #1a2230;'}`;
+                btn.textContent = num === 3 ? '3+' : num;
+                btn.onclick = () => setBulkPylonCount(p.id, ex.id, runIdx, c.id, num);
+                btnRow.appendChild(btn);
+              });
+            } else {
+              // Trainer-3-Stufen: Erfüllt / Teilweise / Nicht erfüllt
+              const opts = [
+                { val: 'pass', label: '✓ Erfüllt', color: '#00a86b' },
+                { val: 'partial', label: '~ Teilweise', color: '#c09000' },
+                { val: 'fail', label: '✗ Nicht', color: '#c82e4e' }
+              ];
+              btnRow.style.cssText = 'display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px;';
+              opts.forEach(opt => {
+                const btn = document.createElement('button');
+                btn.className = 'btn small';
+                const isSelected = run.trainerInputs && run.trainerInputs[c.id] === opt.val;
+                btn.style.cssText = `padding: 10px 4px; font-size: 12px; ${isSelected ? 'background: ' + opt.color + ';' : 'background: #1a2230;'}`;
+                btn.textContent = opt.label;
+                btn.onclick = () => setBulkTrainer3(p.id, ex.id, runIdx, c.id, opt.val);
+                btnRow.appendChild(btn);
+              });
+            }
+            
+            critDiv.appendChild(btnRow);
+            runDiv.appendChild(critDiv);
+          });
+        }
+        
+        exDiv.appendChild(runDiv);
+      });
+      
+      container.appendChild(exDiv);
+    });
+  });
+  
+  if (container.children.length === 0) {
+    container.innerHTML = '<div style="padding: 30px; text-align: center; color: #8b95a3;">' +
+      (bulkEvalFilter === 'pending' 
+        ? '✓ Alle Bewertungen sind komplett!' 
+        : 'Keine Durchläufe vorhanden.') + '</div>';
+  }
+}
+
+function setBulkPylonCount(participantId, exerciseId, runIdx, critId, count) {
+  const p = state.session.participants.find(x => x.id === participantId);
+  const ex = EX.find(e => e.id === exerciseId);
+  const run = p.runs[exerciseId][runIdx];
+  const crit = ex.criteria.find(c => c.id === critId);
+  
+  run.pylonCount = count;
+  run.evals[critId] = (count === 0);
+  run.pylonPending = false;
+  
+  // Check if all trainer inputs are now complete
+  recomputeRunStatus(run, ex);
+  save();
+  renderBulkEval();
+}
+
+function setBulkTrainer3(participantId, exerciseId, runIdx, critId, value) {
+  const p = state.session.participants.find(x => x.id === participantId);
+  const ex = EX.find(e => e.id === exerciseId);
+  const run = p.runs[exerciseId][runIdx];
+  
+  run.trainerInputs = run.trainerInputs || {};
+  run.trainerInputs[critId] = value;
+  run.evals[critId] = (value === 'pass');
+  
+  recomputeRunStatus(run, ex);
+  save();
+  renderBulkEval();
+}
+
+function recomputeRunStatus(run, ex) {
+  // Check if all trainer criteria have inputs
+  const trainerCriteria = ex.criteria.filter(c => c.source === 'trainer' || c.source === 'trainer-3');
+  let allComplete = true;
+  trainerCriteria.forEach(c => {
+    if (c.source === 'trainer') {
+      if (run.pylonCount === undefined || run.pylonCount === null) allComplete = false;
+    } else {
+      if (!run.trainerInputs || !run.trainerInputs[c.id]) allComplete = false;
+    }
+  });
+  
+  run.trainerPending = !allComplete;
+  
+  // Recompute grade based on all evals
+  let sumWeighted = 0, sumWeights = 0, hasKO = false;
+  ex.criteria.forEach(c => {
+    let note;
+    if (c.source === 'trainer-3' && run.trainerInputs && run.trainerInputs[c.id]) {
+      const v = run.trainerInputs[c.id];
+      note = v === 'pass' ? 2.0 : v === 'partial' ? 3.0 : 5.0;
+    } else {
+      const passed = run.evals[c.id];
+      note = passed ? c.pass : c.fail;
+    }
+    
+    if (c.weight === 'ko' && note >= 4.5) hasKO = true;
+    
+    const weight = c.weight === 'bns' ? 3 : c.weight === 'imp' ? 2 : c.weight === 'ko' ? 1 : 1;
+    sumWeighted += note * weight;
+    sumWeights += weight;
+  });
+  
+  run.grade = hasKO ? 5.0 : (sumWeighted / sumWeights);
 }
 
 function renderExCards() {
