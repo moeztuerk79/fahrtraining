@@ -408,7 +408,9 @@ var qrcodegen = new function() {
       }
       if (version >= maxVersion) throw "Data too long";
     }
-    for (var newEcl of [Ecc.MEDIUM, Ecc.QUARTILE, Ecc.HIGH]) {
+    var newEclList = [Ecc.MEDIUM, Ecc.QUARTILE, Ecc.HIGH];
+    for (var nei = 0; nei < newEclList.length; nei++) {
+      var newEcl = newEclList[nei];
       if (boostEcl && dataUsedBits <= Math.floor(QrCode.getNumRawDataModules(version) / 8) * 8 - QrCode.ECC_CODEWORDS_PER_BLOCK[newEcl.ordinal][version] * QrCode.NUM_ERROR_CORRECTION_BLOCKS[newEcl.ordinal][version] * 8) ecl = newEcl;
     }
     var bb = [];
@@ -650,7 +652,7 @@ html, body { background: #0a0d12; color: #e8edf2; font-family: -apple-system, Bl
 
 <!-- HOME -->
 <div class="screen" id="screen-home">
-  <div class="screen-title">Hauptmenü</div>
+  <div class="screen-title" onclick="toggleDiagInfo()" style="cursor:pointer;">Hauptmenü</div>
   <div class="screen-sub">Was möchtest du tun?</div>
 
   <div id="sessionBanner" style="display:none;">
@@ -704,6 +706,9 @@ html, body { background: #0a0d12; color: #e8edf2; font-family: -apple-system, Bl
       <div class="card-arrow">›</div>
     </div>
   </div>
+  
+  <!-- Diagnostic info (only shows when user taps the heading 5x) -->
+  <div id="diagInfo" style="display:none; margin-top: 18px; padding: 12px; background: #11151c; border: 1px solid #c09000; font-size: 11px; font-family: 'Menlo', monospace; color: #c0c8d4; word-break: break-all;">—</div>
 
   <div class="card pending" onclick="startQRScanRefs()">
     <div class="card-row">
@@ -1349,6 +1354,51 @@ function showScreen(id) {
 }
 
 function goHome() { load(); refreshHome(); showScreen('screen-home'); }
+
+function toggleDiagInfo() {
+  const box = document.getElementById('diagInfo');
+  if (!box) return;
+  if (box.style.display === 'none') {
+    let testResult = 'Library nicht getestet';
+    try {
+      if (window.QRCode && window.QRCode.toCanvas) {
+        window.QRCode.toCanvas('test123', { width: 100 }, function(err, canvas) {
+          if (err) {
+            document.getElementById('diagTest').textContent = 'TEST FEHLER: ' + (err.message || err.toString());
+          } else {
+            document.getElementById('diagTest').textContent = 'TEST OK: Canvas ' + canvas.width + 'x' + canvas.height;
+          }
+        });
+        testResult = 'Test läuft...';
+      }
+    } catch(e) {
+      testResult = 'TEST EXCEPTION: ' + (e.message || e.toString());
+    }
+    
+    box.innerHTML = 
+      '<strong style="color:#c09000;">▸ DIAGNOSE</strong><br><br>' +
+      '<strong>Libraries:</strong><br>' +
+      '• QRCode: ' + (window.QRCode ? '✓ geladen' : '✗ nicht geladen') + '<br>' +
+      '• Html5Qrcode: ' + (window.Html5Qrcode ? '✓ geladen' : '✗ nicht geladen') + '<br>' +
+      '• jsPDF: ' + (window.jspdf ? '✓ geladen' : '✗ nicht geladen') + '<br>' +
+      '• qrcodegen: ' + (typeof qrcodegen !== 'undefined' ? '✓ geladen' : '✗ nicht geladen') + '<br><br>' +
+      '<strong>QR-Test:</strong><br>' +
+      '<span id="diagTest">' + testResult + '</span><br><br>' +
+      '<strong>Browser:</strong><br>' +
+      '• Online: ' + navigator.onLine + '<br>' +
+      '• Plattform: ' + navigator.platform + '<br>' +
+      '• Sprache: ' + navigator.language + '<br><br>' +
+      '<strong>User Agent:</strong><br>' +
+      navigator.userAgent + '<br><br>' +
+      '<strong>Session:</strong><br>' +
+      (state.session ? 
+        'Aktiv · ' + (state.session.participantMode ? 'TEILNEHMER' : 'TRAINER') + ' · ' + state.session.participants.length + ' TN' 
+        : 'Keine');
+    box.style.display = 'block';
+  } else {
+    box.style.display = 'none';
+  }
+}
 
 function refreshHome() {
   if (state.session) {
@@ -3214,15 +3264,22 @@ function generateRefsQR(targetParticipant) {
   const container = document.getElementById('qrRefsCanvas');
   container.innerHTML = '';
   
-  QRCode.toCanvas(json, {
-    width: 280, margin: 2, errorCorrectionLevel: 'M',
-    color: { dark: '#1a2230', light: '#ffffff' }
-  }, function(err, canvas) {
-    if (err) { container.innerHTML = '<div style="color:#c82e4e;">Fehler: ' + err.message + '</div>'; return; }
-    container.appendChild(canvas);
-    document.getElementById('qrRefsInfo').textContent = 
-      `${state.session.location} · NUR FÜR ${targetParticipant.name.toUpperCase()} · ${json.length} BYTES`;
-  });
+  try {
+    QRCode.toCanvas(json, {
+      width: 280, margin: 2, errorCorrectionLevel: 'M',
+      color: { dark: '#1a2230', light: '#ffffff' }
+    }, function(err, canvas) {
+      if (err) { 
+        container.innerHTML = '<div style="padding:20px; color:#c82e4e; font-size:12px; word-break:break-all;"><strong>QR-Code-Fehler:</strong><br>' + (err.message || err.toString() || 'Unbekannt') + '<br><br><strong>Daten-Größe:</strong> ' + json.length + ' Bytes</div>'; 
+        return; 
+      }
+      container.appendChild(canvas);
+      document.getElementById('qrRefsInfo').textContent = 
+        `${state.session.location} · NUR FÜR ${targetParticipant.name.toUpperCase()} · ${json.length} BYTES`;
+    });
+  } catch(e) {
+    container.innerHTML = '<div style="padding:20px; color:#c82e4e; font-size:12px; word-break:break-all;"><strong>Fehler beim Generieren:</strong><br>' + (e.message || e.toString()) + '<br><br><strong>Stack:</strong><br>' + (e.stack ? e.stack.substring(0, 300) : 'kein Stack') + '</div>';
+  }
 }
 
 function startQRScanRefs() {
