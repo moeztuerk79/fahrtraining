@@ -809,9 +809,11 @@ html, body { background: #0a0d12; color: #e8edf2; font-family: -apple-system, Bl
   <button class="btn secondary" onclick="showOverview()">📊 Übersicht / Ergebnisse</button>
   
   <div style="margin-top: 18px; padding: 14px; background: #11151c; border: 1px solid #232a35; border-left: 4px solid #ff4500;">
-    <div style="font-size: 11px; letter-spacing: 0.15em; color: #ff4500; font-family: 'Menlo', monospace; margin-bottom: 12px;">▸ QR-CODE SYNC</div>
-    <button class="btn secondary" onclick="showQRShareRefs()" style="margin-bottom: 6px;">📤 Referenzen teilen (an Teilnehmer)</button>
-    <button class="btn secondary" onclick="startQRScanResults()">📥 Ergebnisse empfangen (von Teilnehmer)</button>
+    <div style="font-size: 11px; letter-spacing: 0.15em; color: #ff4500; font-family: 'Menlo', monospace; margin-bottom: 12px;">▸ TEILNEHMER-DATEN</div>
+    <button class="btn secondary" onclick="showQRShareRefs()" style="margin-bottom: 6px;">📤 Referenzen an Teilnehmer (QR)</button>
+    <button class="btn" onclick="importResultsFile()" style="margin-bottom: 6px;">📥 Ergebnisse aus Datei importieren</button>
+    <button class="btn secondary" onclick="startQRScanResults()">📷 Per QR-Code empfangen (Notfall)</button>
+    <input type="file" id="resultsFileInput" accept=".json,application/json" style="display:none;" onchange="handleResultsFile(event)">
   </div>
 
   <div id="demoQuickBox" style="display:none; margin-top: 16px;">
@@ -1049,27 +1051,51 @@ html, body { background: #0a0d12; color: #e8edf2; font-family: -apple-system, Bl
 
 <!-- QR SHARE: Teilnehmer zeigt Ergebnisse -->
 <div class="screen" id="screen-qr-share-results">
-  <button class="back-btn" onclick="showScreen('screen-pselect')">‹ Zurück</button>
+  <button class="back-btn" onclick="showScreen('screen-home')">‹ Zurück</button>
   <div class="screen-title">Ergebnisse an Trainer senden</div>
   <div class="screen-sub" id="qrShareResultsSub">—</div>
   
   <div class="info-box">
-    <strong>◆ Anleitung</strong><br>
-    Trainer scannt diesen Code mit seinem Smartphone.<br>
-    Bei großen Datenmengen werden mehrere QR-Codes nacheinander angezeigt.
+    <strong>◆ Wie übertragen?</strong><br>
+    Wähle einen der Wege unten. Empfehlung: <strong>AirDrop</strong> (zwischen iPhones) oder <strong>WhatsApp</strong>.
   </div>
   
-  <div id="qrResultsContainer" style="background: white; padding: 24px; margin: 16px 0; display: flex; flex-direction: column; align-items: center; border: 1px solid #232a35;">
-    <div id="qrResultsCanvas"></div>
-    <div id="qrResultsInfo" style="color: #1a2230; font-size: 11px; margin-top: 12px; font-family: 'Menlo', monospace; letter-spacing: 0.05em;">—</div>
+  <!-- OPTION 1: Web Share (AirDrop/WhatsApp/Mail) -->
+  <div style="margin-top: 14px; padding: 14px; background: #11151c; border: 1px solid #232a35; border-left: 4px solid #00a86b;">
+    <div style="font-size: 11px; color: #00a86b; font-family: 'Menlo', monospace; letter-spacing: 0.15em; margin-bottom: 8px;">▸ EMPFOHLEN</div>
+    <div style="font-size: 14px; color: white; font-weight: bold; margin-bottom: 4px;">Per AirDrop / WhatsApp / Mail senden</div>
+    <div style="font-size: 12px; color: #8b95a3; margin-bottom: 10px;">Datei wird erzeugt und über das System-Menü geteilt. Trainer öffnet sie in seiner App.</div>
+    <button class="btn" onclick="shareResultsFile()">📤 Datei teilen</button>
   </div>
   
-  <div id="qrResultsNav" style="display: none; gap: 6px; margin-top: 8px;">
-    <button class="btn secondary small" onclick="prevResultQR()" id="qrPrevBtn">‹ Vorheriger</button>
-    <button class="btn secondary small" onclick="nextResultQR()" id="qrNextBtn">Nächster ›</button>
+  <!-- OPTION 2: File download -->
+  <div style="margin-top: 12px; padding: 14px; background: #11151c; border: 1px solid #232a35;">
+    <div style="font-size: 11px; color: #8b95a3; font-family: 'Menlo', monospace; letter-spacing: 0.15em; margin-bottom: 8px;">▸ ALTERNATIV</div>
+    <div style="font-size: 14px; color: white; font-weight: bold; margin-bottom: 4px;">Datei herunterladen</div>
+    <div style="font-size: 12px; color: #8b95a3; margin-bottom: 10px;">Speichert die Datei lokal. Du kannst sie später teilen.</div>
+    <button class="btn secondary" onclick="downloadResultsFile()">📥 Als Datei speichern</button>
   </div>
   
-  <button class="btn secondary" onclick="generateResultsQR()">↻ QR-Codes neu generieren</button>
+  <!-- OPTION 3: QR Code (offline fallback) -->
+  <div style="margin-top: 12px; padding: 14px; background: #11151c; border: 1px solid #232a35;">
+    <div style="font-size: 11px; color: #8b95a3; font-family: 'Menlo', monospace; letter-spacing: 0.15em; margin-bottom: 8px;">▸ NOTFALL (OHNE INTERNET)</div>
+    <div style="font-size: 14px; color: white; font-weight: bold; margin-bottom: 4px;">QR-Code anzeigen</div>
+    <div style="font-size: 12px; color: #8b95a3; margin-bottom: 10px;">Trainer scannt mit seiner App. Bei vielen Daten mehrere QR-Codes — daher schwieriger.</div>
+    <button class="btn secondary" onclick="toggleQRCodeView()">📱 QR-Code anzeigen</button>
+  </div>
+  
+  <!-- QR Code Display (hidden by default) -->
+  <div id="qrCodeView" style="display:none; margin-top: 16px;">
+    <div id="qrResultsContainer" style="background: white; padding: 24px; display: flex; flex-direction: column; align-items: center; border: 1px solid #232a35;">
+      <div id="qrResultsCanvas"></div>
+      <div id="qrResultsInfo" style="color: #1a2230; font-size: 11px; margin-top: 12px; font-family: 'Menlo', monospace; letter-spacing: 0.05em;">—</div>
+    </div>
+    
+    <div id="qrResultsNav" style="display: none; gap: 6px; margin-top: 8px;">
+      <button class="btn secondary small" onclick="prevResultQR()" id="qrPrevBtn">‹ Vorheriger</button>
+      <button class="btn secondary small" onclick="nextResultQR()" id="qrNextBtn">Nächster ›</button>
+    </div>
+  </div>
 </div>
 
 <!-- QR SCAN: Trainer empfängt Ergebnisse -->
@@ -3607,25 +3633,148 @@ function showQRShareResults() {
   const p = participantsWithRuns[0];
   document.getElementById('qrShareResultsSub').textContent = 
     `${p.name} · ${Object.values(p.runs).reduce((sum, runs) => sum + runs.length, 0)} Durchläufe gesamt`;
+  
+  // Hide QR view by default (user clicks "QR anzeigen" if needed)
+  document.getElementById('qrCodeView').style.display = 'none';
+  
   showScreen('screen-qr-share-results');
+}
+
+function toggleQRCodeView() {
+  const view = document.getElementById('qrCodeView');
+  if (view.style.display === 'none') {
+    view.style.display = 'block';
+    // Lazy-generate QR codes only when user wants them
+    const p = state.session.participants.find(x => 
+      x.runs && Object.keys(x.runs).length > 0 && Object.values(x.runs).some(r => r.length > 0)
+    );
+    if (!p) return;
+    
+    const container = document.getElementById('qrResultsCanvas');
+    container.innerHTML = '<div style="padding: 60px 20px; text-align: center; color: #8b95a3;">⏳ QR-Code wird generiert...</div>';
+    
+    const tryGenerate = (attempts) => {
+      if (window.QRCode) {
+        generateResultsQR(p);
+        return;
+      }
+      if (attempts >= 30) {
+        container.innerHTML = '<div style="padding: 30px 20px; text-align: center; color: #c82e4e;">QR-Code-Library konnte nicht geladen werden.</div>';
+        return;
+      }
+      setTimeout(() => tryGenerate(attempts + 1), 200);
+    };
+    tryGenerate(0);
+  } else {
+    view.style.display = 'none';
+  }
+}
+
+// Build full participant data payload
+function buildParticipantPayload() {
+  const p = state.session.participants.find(x => 
+    x.runs && Object.keys(x.runs).length > 0 && Object.values(x.runs).some(r => r.length > 0)
+  );
+  if (!p) return null;
   
-  // Show loading state
-  const container = document.getElementById('qrResultsCanvas');
-  container.innerHTML = '<div style="padding: 60px 20px; text-align: center; color: #8b95a3;">⏳ QR-Code wird generiert...</div>';
-  
-  // Wait for library
-  const tryGenerate = (attempts) => {
-    if (window.QRCode) {
-      generateResultsQR(p);
-      return;
-    }
-    if (attempts >= 30) {
-      container.innerHTML = '<div style="padding: 30px 20px; text-align: center; color: #c82e4e;">QR-Code-Library konnte nicht geladen werden.<br><br>Bitte Internetverbindung prüfen und Seite neu laden.</div>';
-      return;
-    }
-    setTimeout(() => tryGenerate(attempts + 1), 200);
+  // Full data export - everything the trainer needs
+  return {
+    type: 'driverai-results',
+    version: 2,
+    session: {
+      id: state.session.id,
+      date: state.session.date,
+      location: state.session.location,
+      trainer: state.session.trainer,
+      program: state.session.program
+    },
+    participant: {
+      id: p.id,
+      name: p.name,
+      runs: p.runs
+    },
+    exportedAt: new Date().toISOString()
   };
-  tryGenerate(0);
+}
+
+// Share results via Web Share API (AirDrop/WhatsApp/Mail)
+async function shareResultsFile() {
+  const payload = buildParticipantPayload();
+  if (!payload) {
+    alert('Keine Durchläufe zum Teilen.');
+    return;
+  }
+  
+  const json = JSON.stringify(payload, null, 2);
+  const filename = `DriverAI_${payload.participant.name.replace(/\s/g, '_')}_${payload.session.date}.json`;
+  
+  // Try modern Web Share API with file support
+  if (navigator.canShare) {
+    try {
+      const blob = new Blob([json], { type: 'application/json' });
+      const file = new File([blob], filename, { type: 'application/json' });
+      
+      const shareData = {
+        title: 'Driver.AI Trainings-Ergebnisse',
+        text: `Ergebnisse von ${payload.participant.name}\n` +
+              `Programm: ${(PROGRAMS[payload.session.program] || PROGRAMS.basis).name}\n` +
+              `Datum: ${payload.session.date}\n` +
+              `Ort: ${payload.session.location}\n\n` +
+              `Diese Datei in der Driver.AI App des Trainers öffnen.`,
+        files: [file]
+      };
+      
+      if (navigator.canShare(shareData)) {
+        await navigator.share(shareData);
+        return;
+      }
+    } catch (err) {
+      if (err.name === 'AbortError') return;  // User cancelled
+      console.error('Web Share Error:', err);
+    }
+  }
+  
+  // Fallback 1: Try sharing as text (some browsers don't support files)
+  if (navigator.share) {
+    try {
+      await navigator.share({
+        title: 'Driver.AI Ergebnisse',
+        text: 'Driver.AI Daten:\n\n' + json
+      });
+      return;
+    } catch (err) {
+      if (err.name === 'AbortError') return;
+    }
+  }
+  
+  // Fallback 2: Download the file
+  alert('Direktes Teilen wird auf diesem Gerät nicht unterstützt.\n\nDatei wird stattdessen heruntergeladen — du kannst sie dann manuell teilen.');
+  downloadResultsFile();
+}
+
+function downloadResultsFile() {
+  const payload = buildParticipantPayload();
+  if (!payload) {
+    alert('Keine Durchläufe zum Speichern.');
+    return;
+  }
+  
+  const json = JSON.stringify(payload, null, 2);
+  const filename = `DriverAI_${payload.participant.name.replace(/\s/g, '_')}_${payload.session.date}.json`;
+  
+  const blob = new Blob([json], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+  
+  setTimeout(() => {
+    alert('✓ Datei gespeichert!\n\n' + filename + '\n\nDu findest sie in deinem Download-Ordner. Per WhatsApp, AirDrop oder Mail an den Trainer schicken.');
+  }, 300);
 }
 
 function generateResultsQR(participant) {
@@ -3718,6 +3867,83 @@ function prevResultQR() {
 
 function nextResultQR() {
   if (qrResultsIndex < qrResultsData.length - 1) { qrResultsIndex++; renderCurrentResultsQR(); }
+}
+
+// ============================================================================
+// TRAINER: Import results from file (sent via AirDrop/WhatsApp/Mail)
+// ============================================================================
+function importResultsFile() {
+  if (!state.session) {
+    alert('Bitte zuerst eine Session anlegen, damit die Ergebnisse zugeordnet werden können.');
+    return;
+  }
+  document.getElementById('resultsFileInput').click();
+}
+
+function handleResultsFile(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+  
+  const reader = new FileReader();
+  reader.onload = function(e) {
+    try {
+      const payload = JSON.parse(e.target.result);
+      
+      if (payload.type !== 'driverai-results') {
+        alert('Diese Datei ist keine Driver.AI Ergebnis-Datei.');
+        return;
+      }
+      
+      // Find participant in current session
+      const sessionData = payload.session;
+      const pData = payload.participant;
+      
+      let p = state.session.participants.find(x => x.id === pData.id);
+      if (!p) p = state.session.participants.find(x => x.name === pData.name);
+      
+      if (!p) {
+        if (!confirm(
+          `Teilnehmer "${pData.name}" ist nicht in der aktuellen Session.\n\n` +
+          `Aktuelle Session: ${state.session.location} (${state.session.date})\n` +
+          `Datei: ${sessionData.location} (${sessionData.date})\n\n` +
+          `[OK] = Teilnehmer hinzufügen\n[Abbrechen] = Import abbrechen`
+        )) {
+          return;
+        }
+        p = { 
+          id: pData.id, 
+          num: state.session.participants.length + 1,
+          name: pData.name, 
+          runs: {} 
+        };
+        state.session.participants.push(p);
+      }
+      
+      // Import all runs
+      p.runs = pData.runs;
+      save();
+      
+      const totalRuns = Object.values(pData.runs).reduce((sum, runs) => sum + runs.length, 0);
+      alert(`✓ Ergebnisse importiert!\n\n` +
+            `Teilnehmer: ${p.name}\n` +
+            `Durchläufe: ${totalRuns}\n` +
+            `Übungen: ${Object.keys(pData.runs).length}\n\n` +
+            `Du kannst jetzt Pylonen-Eingaben nachtragen und PDFs erstellen.`);
+      
+      enterDashboard();
+    } catch (err) {
+      alert('Fehler beim Import: ' + (err.message || err));
+    }
+  };
+  
+  reader.onerror = function() {
+    alert('Datei konnte nicht gelesen werden.');
+  };
+  
+  reader.readAsText(file);
+  
+  // Reset input so same file can be imported again later
+  event.target.value = '';
 }
 
 function startQRScanResults() {
