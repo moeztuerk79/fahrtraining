@@ -2666,7 +2666,30 @@ function showActiveRefsQR(participant) {
   document.getElementById('qrRefsActiveContainer').style.display = 'block';
   document.getElementById('qrRefsActiveName').textContent = participant.name;
   
-  setTimeout(() => generateRefsQR(participant), 50);
+  // Show loading state
+  const container = document.getElementById('qrRefsCanvas');
+  container.innerHTML = '<div style="padding: 60px 20px; text-align: center; color: #8b95a3;">⏳ QR-Code wird generiert...</div>';
+  document.getElementById('qrRefsInfo').textContent = 'BITTE WARTEN';
+  
+  // Wait for QRCode library with retry
+  waitForQRCode(() => generateRefsQR(participant), 0);
+}
+
+function waitForQRCode(callback, attempts) {
+  if (window.QRCode) {
+    callback();
+    return;
+  }
+  
+  if (attempts >= 30) {  // 30 × 200ms = 6 seconds max wait
+    const container = document.getElementById('qrRefsCanvas');
+    if (container) {
+      container.innerHTML = '<div style="padding: 30px 20px; text-align: center; color: #c82e4e;">QR-Code-Library konnte nicht geladen werden.<br><br>Bitte Internetverbindung prüfen und Seite neu laden.</div>';
+    }
+    return;
+  }
+  
+  setTimeout(() => waitForQRCode(callback, attempts + 1), 200);
 }
 
 function hideActiveRefsQR() {
@@ -2675,7 +2698,12 @@ function hideActiveRefsQR() {
 }
 
 function generateRefsQR(targetParticipant) {
-  if (!window.QRCode) { alert('QR-Code-Library noch nicht geladen.'); return; }
+  if (!window.QRCode) {
+    // Should not happen due to waitForQRCode, but safety net
+    const container = document.getElementById('qrRefsCanvas');
+    container.innerHTML = '<div style="padding: 30px; color: #c82e4e;">Library noch nicht bereit, bitte nochmal probieren.</div>';
+    return;
+  }
   
   // Personalized payload: ONLY the target participant's info
   const payload = {
@@ -2713,12 +2741,21 @@ function startQRScanRefs() {
   setTimeout(() => startScanner('qr-reader', onScanRefsSuccess, 'qrScanStatus'), 200);
 }
 
-function startScanner(elementId, onSuccess, statusId) {
+function startScanner(elementId, onSuccess, statusId, attempts) {
+  attempts = attempts || 0;
+  
   if (!window.Html5Qrcode) {
-    document.getElementById(statusId).textContent = 'QR-Scanner-Library noch nicht geladen';
-    document.getElementById(statusId).style.color = '#c82e4e';
+    if (attempts >= 30) {
+      document.getElementById(statusId).textContent = 'Scanner-Library konnte nicht geladen werden. Bitte neu laden.';
+      document.getElementById(statusId).style.color = '#c82e4e';
+      return;
+    }
+    document.getElementById(statusId).textContent = 'Library wird geladen... (' + attempts + ')';
+    document.getElementById(statusId).style.color = '#c09000';
+    setTimeout(() => startScanner(elementId, onSuccess, statusId, attempts + 1), 200);
     return;
   }
+  
   stopQRScanner();
   qrScanner = new Html5Qrcode(elementId);
   const config = { fps: 10, qrbox: { width: 250, height: 250 } };
@@ -2825,7 +2862,24 @@ function showQRShareResults() {
   document.getElementById('qrShareResultsSub').textContent = 
     `${p.name} · ${Object.values(p.runs).reduce((sum, runs) => sum + runs.length, 0)} Durchläufe gesamt`;
   showScreen('screen-qr-share-results');
-  setTimeout(() => generateResultsQR(p), 100);
+  
+  // Show loading state
+  const container = document.getElementById('qrResultsCanvas');
+  container.innerHTML = '<div style="padding: 60px 20px; text-align: center; color: #8b95a3;">⏳ QR-Code wird generiert...</div>';
+  
+  // Wait for library
+  const tryGenerate = (attempts) => {
+    if (window.QRCode) {
+      generateResultsQR(p);
+      return;
+    }
+    if (attempts >= 30) {
+      container.innerHTML = '<div style="padding: 30px 20px; text-align: center; color: #c82e4e;">QR-Code-Library konnte nicht geladen werden.<br><br>Bitte Internetverbindung prüfen und Seite neu laden.</div>';
+      return;
+    }
+    setTimeout(() => tryGenerate(attempts + 1), 200);
+  };
+  tryGenerate(0);
 }
 
 function generateResultsQR(participant) {
