@@ -664,9 +664,9 @@ html, body { background: #0a0d12; color: #e8edf2; font-family: -apple-system, Bl
   </div>
 
   <!-- ============================================================ -->
-  <!-- TEILNEHMER-SEKTION (immer sichtbar) -->
+  <!-- TEILNEHMER-SEKTION (nur sichtbar mit ?teilnehmer in URL) -->
   <!-- ============================================================ -->
-  <div id="participantSection">
+  <div id="participantSection" style="display:none;">
     <div class="card pending" onclick="startQRScanRefs()">
       <div class="card-row">
         <div class="card-info">
@@ -804,23 +804,51 @@ html, body { background: #0a0d12; color: #e8edf2; font-family: -apple-system, Bl
     <span id="refStatusText">—</span>
   </div>
 
-  <button class="btn" onclick="enterTrainerMode()">◆ Trainer-Modus: Referenzen aufzeichnen</button>
-  <button class="btn green" id="participantBtn" onclick="enterParticipantMode()">▶ Teilnehmer-Modus: Durchläufe</button>
-  <button class="btn" onclick="showBulkEval()" style="background: #c09000;">📝 Bewertungen nachtragen</button>
-  <button class="btn secondary" onclick="showOverview()">📊 Übersicht / Ergebnisse</button>
-  
-  <div style="margin-top: 18px; padding: 14px; background: #11151c; border: 1px solid #232a35; border-left: 4px solid #ff4500;">
-    <div style="font-size: 11px; letter-spacing: 0.15em; color: #ff4500; font-family: 'Menlo', monospace; margin-bottom: 12px;">▸ TEILNEHMER-DATEN</div>
-    <button class="btn secondary" onclick="showQRShareRefs()" style="margin-bottom: 6px;">📤 Referenzen an Teilnehmer (QR)</button>
-    <button class="btn" onclick="importResultsFile()" style="margin-bottom: 6px;">📥 Ergebnisse aus Datei importieren</button>
-    <button class="btn secondary" onclick="startQRScanResults()">📷 Per QR-Code empfangen (Notfall)</button>
+  <!-- ============================================================ -->
+  <!-- PHASE 1: REFERENZEN AUFNEHMEN -->
+  <!-- ============================================================ -->
+  <div style="margin-top: 18px;">
+    <div style="font-size: 10px; letter-spacing: 0.2em; color: #8b95a3; font-family: 'Menlo', monospace; margin-bottom: 8px;">▸ PHASE 1 — VOR DEM TRAINING</div>
+    <button class="btn" onclick="enterTrainerMode()">◆ Trainer-Modus: Referenzen aufzeichnen</button>
+  </div>
+
+  <!-- ============================================================ -->
+  <!-- PHASE 2: TEILNEHMER FAHREN -->
+  <!-- ============================================================ -->
+  <div style="margin-top: 18px;">
+    <div style="font-size: 10px; letter-spacing: 0.2em; color: #8b95a3; font-family: 'Menlo', monospace; margin-bottom: 8px;">▸ PHASE 2 — WÄHREND DES TRAININGS</div>
+    <button class="btn secondary" onclick="showQRShareRefs()" style="margin-bottom: 6px;">📤 Referenzen an Teilnehmer verteilen</button>
+    <button class="btn green" id="participantBtn" onclick="enterParticipantMode()">▶ Teilnehmer-Modus (Backup-Gerät)</button>
+  </div>
+
+  <!-- ============================================================ -->
+  <!-- PHASE 3: AUSWERTEN -->
+  <!-- ============================================================ -->
+  <div style="margin-top: 18px;">
+    <div style="font-size: 10px; letter-spacing: 0.2em; color: #8b95a3; font-family: 'Menlo', monospace; margin-bottom: 8px;">▸ PHASE 3 — NACH DEM TRAINING</div>
+    <button class="btn" onclick="importResultsFile()" style="margin-bottom: 6px;">📥 Teilnehmer-Daten importieren</button>
+    <button class="btn" onclick="showBulkEval()" style="background: #c09000; margin-bottom: 6px;">📝 Bewertungen nachtragen</button>
+    <button class="btn secondary" onclick="showOverview()">📊 Übersicht / PDF / Email</button>
     <input type="file" id="resultsFileInput" accept=".json,application/json" style="display:none;" onchange="handleResultsFile(event)">
   </div>
 
-  <div id="demoQuickBox" style="display:none; margin-top: 16px;">
-    <div class="demo-banner">DEMO-MODUS · Schnell-Setup zum Testen</div>
-    <button class="btn secondary small" onclick="fillDummyRefs()">⚡ Alle Referenzen mit Dummy-Werten füllen</button>
-    <button class="btn secondary small" onclick="fillDummyRuns()" style="margin-top: 4px;">⚡ Alle Teilnehmer-Durchläufe simulieren</button>
+  <!-- ============================================================ -->
+  <!-- WEITERE OPTIONEN (Untermenü) -->
+  <!-- ============================================================ -->
+  <div style="margin-top: 24px;">
+    <button class="btn secondary small" onclick="toggleMoreOptions()" style="opacity: 0.6;" id="moreOptionsBtn">⋯ Weitere Optionen</button>
+  </div>
+
+  <div id="moreOptionsBox" style="display:none; margin-top: 10px; padding: 14px; background: #11151c; border: 1px solid #232a35;">
+    <div style="font-size: 10px; letter-spacing: 0.2em; color: #8b95a3; font-family: 'Menlo', monospace; margin-bottom: 10px;">▸ WEITERE</div>
+    <button class="btn secondary small" onclick="startQRScanResults()" style="margin-bottom: 6px;">📷 Ergebnisse per QR-Code empfangen (Notfall ohne Internet)</button>
+    <button class="btn secondary small" onclick="toggleDemoButtons()" id="demoToggleBtn" style="margin-bottom: 6px;">🔧 Demo-Modus aktivieren</button>
+  </div>
+
+  <div id="demoQuickBox" style="display:none; margin-top: 10px; padding: 14px; background: #11151c; border: 1px solid #c09000; border-left: 4px solid #c09000;">
+    <div style="font-size: 10px; letter-spacing: 0.2em; color: #c09000; font-family: 'Menlo', monospace; margin-bottom: 10px;">▸ DEMO-MODUS · NUR ZUM TESTEN</div>
+    <button class="btn secondary small" onclick="fillDummyRefs()" style="margin-bottom: 6px;">⚡ Alle Referenzen mit Dummy-Werten füllen</button>
+    <button class="btn secondary small" onclick="fillDummyRuns()">⚡ Alle Teilnehmer-Durchläufe simulieren</button>
   </div>
 </div>
 
@@ -1503,15 +1531,17 @@ function refreshHome() {
   const isParticipantMode = state.session && state.session.participantMode;
   const isParticipantView = isParticipantUrl || isParticipantMode;
   
-  // Show trainer section ONLY if not on participant URL and not in participant mode
+  // Show trainer section ONLY if not in participant context
   document.getElementById('trainerSection').style.display = isParticipantView ? 'none' : 'block';
+  
+  // Show participant section ONLY in participant context
+  document.getElementById('participantSection').style.display = isParticipantView ? 'block' : 'none';
   
   // Show participant link sharing area only in trainer mode
   const linkArea = document.getElementById('participantLinkArea');
   if (linkArea) {
     linkArea.style.display = isParticipantView ? 'none' : 'block';
     if (!isParticipantView) {
-      // Build participant URL
       const baseUrl = window.location.origin + window.location.pathname;
       const participantUrl = baseUrl + '?teilnehmer';
       document.getElementById('participantLinkText').textContent = participantUrl;
@@ -1721,8 +1751,9 @@ function enterDashboard() {
   const progName = (PROGRAMS[state.session.program] || PROGRAMS.basis).name;
   document.getElementById('dashSub').textContent = `${progName} · ${state.session.participants.length} Teilnehmer · ${EX.length} Übungen`;
 
-  // Show demo quick-fill buttons if in demo mode
-  document.getElementById('demoQuickBox').style.display = state.demo ? 'block' : 'none';
+  // Demo box is now only shown via the toggle button in "Weitere Optionen"
+  document.getElementById('demoQuickBox').style.display = 'none';
+  document.getElementById('moreOptionsBox').style.display = 'none';
 
   const refsCount = Object.keys(state.session.references).length;
   const rs = document.getElementById('refStatus');
@@ -1744,6 +1775,35 @@ function enterDashboard() {
     document.getElementById('participantBtn').disabled = false;
   }
   showScreen('screen-dashboard');
+}
+
+// Toggle "Weitere Optionen" menu
+function toggleMoreOptions() {
+  const box = document.getElementById('moreOptionsBox');
+  const btn = document.getElementById('moreOptionsBtn');
+  if (box.style.display === 'none' || !box.style.display) {
+    box.style.display = 'block';
+    btn.textContent = '⋯ Weitere Optionen schließen';
+  } else {
+    box.style.display = 'none';
+    btn.textContent = '⋯ Weitere Optionen';
+    // Also hide demo if open
+    document.getElementById('demoQuickBox').style.display = 'none';
+    document.getElementById('demoToggleBtn').textContent = '🔧 Demo-Modus aktivieren';
+  }
+}
+
+// Toggle Demo buttons
+function toggleDemoButtons() {
+  const box = document.getElementById('demoQuickBox');
+  const btn = document.getElementById('demoToggleBtn');
+  if (box.style.display === 'none' || !box.style.display) {
+    box.style.display = 'block';
+    btn.textContent = '🔧 Demo-Modus ausblenden';
+  } else {
+    box.style.display = 'none';
+    btn.textContent = '🔧 Demo-Modus aktivieren';
+  }
 }
 
 function enterTrainerMode() {
