@@ -2074,6 +2074,20 @@ function showBulkEval() {
     return;
   }
   
+  // FIX: Recompute all run statuses to clear stale pending flags
+  // (e.g. exercises without trainer-criteria shouldn't show "offen")
+  state.session.participants.forEach(p => {
+    if (!p.runs) return;
+    Object.keys(p.runs).forEach(exId => {
+      const ex = EX.find(e => e.id === exId);
+      if (!ex) return;
+      p.runs[exId].forEach(run => {
+        recomputeRunStatus(run, ex);
+      });
+    });
+  });
+  save();
+  
   document.getElementById('bulkEvalSub').textContent = 
     `${state.session.participants.length} Teilnehmer · ${EX.length} Übungen`;
   
@@ -2201,14 +2215,20 @@ function renderBulkEval() {
             btnRow.style.cssText = 'display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px;';
             
             if (c.source === 'trainer') {
-              // Pylonen-style: 0 / 1 / 2 / 3+
-              [0, 1, 2, 3].forEach(num => {
+              // Pylonen-style: 0 / 1 / 2 / 3+ with graduated colors
+              const pylonOpts = [
+                { num: 0, label: '0', subLabel: 'alle stehen', color: '#00a86b' },  // green - perfect
+                { num: 1, label: '1', subLabel: 'eine um',    color: '#c09000' },  // yellow
+                { num: 2, label: '2', subLabel: 'zwei um',    color: '#d9643a' },  // orange
+                { num: 3, label: '3+', subLabel: 'drei+ um',  color: '#c82e4e' }   // red
+              ];
+              pylonOpts.forEach(opt => {
                 const btn = document.createElement('button');
                 btn.className = 'btn small';
-                const isSelected = run.pylonCount === num;
-                btn.style.cssText = `padding: 10px 4px; font-size: 14px; ${isSelected ? (num === 0 ? 'background: #00a86b;' : 'background: #c82e4e;') : 'background: #1a2230;'}`;
-                btn.textContent = num === 3 ? '3+' : num;
-                btn.onclick = () => setBulkPylonCount(p.id, ex.id, runIdx, c.id, num);
+                const isSelected = run.pylonCount === opt.num;
+                btn.style.cssText = `padding: 8px 2px; font-size: 13px; line-height: 1.2; ${isSelected ? 'background: ' + opt.color + ';' : 'background: #1a2230;'}`;
+                btn.innerHTML = '<div style="font-weight:bold;">' + opt.label + '</div><div style="font-size:9px; opacity:0.8;">' + opt.subLabel + '</div>';
+                btn.onclick = () => setBulkPylonCount(p.id, ex.id, runIdx, c.id, opt.num);
                 btnRow.appendChild(btn);
               });
             } else {
@@ -2292,7 +2312,18 @@ function recomputeRunStatus(run, ex) {
     }
   });
   
+  // Fix: if exercise has NO trainer criteria at all, it's never pending
+  if (trainerCriteria.length === 0) {
+    allComplete = true;
+  }
+  
   run.trainerPending = !allComplete;
+  
+  // Also reset legacy pylonPending if no trainer-source criteria exist
+  const hasTrainerSource = ex.criteria.some(c => c.source === 'trainer');
+  if (!hasTrainerSource) {
+    run.pylonPending = false;
+  }
   
   // Recompute grade based on all evals
   let sumWeighted = 0, sumWeights = 0, hasKO = false;
@@ -2301,6 +2332,16 @@ function recomputeRunStatus(run, ex) {
     if (c.source === 'trainer-3' && run.trainerInputs && run.trainerInputs[c.id]) {
       const v = run.trainerInputs[c.id];
       note = v === 'pass' ? 2.0 : v === 'partial' ? 3.0 : 5.0;
+    } else if (c.source === 'trainer' && run.pylonCount !== undefined && run.pylonCount !== null) {
+      // STAGED PYLON GRADING:
+      // 0 Pylonen umgefallen = Note 2.0 (perfekt)
+      // 1 Pylon umgefallen   = Note 3.0 (befriedigend)
+      // 2 Pylonen umgefallen = Note 4.0 (mangelhaft) 
+      // 3+ Pylonen umgefallen = Note 5.0 (ungenügend) - KO falls Kriterium KO-gewichtet
+      if (run.pylonCount === 0) note = 2.0;
+      else if (run.pylonCount === 1) note = 3.0;
+      else if (run.pylonCount === 2) note = 4.0;
+      else note = 5.0;
     } else {
       const passed = run.evals[c.id];
       note = passed ? c.pass : c.fail;
@@ -3970,6 +4011,17 @@ function showQRShareResults() {
   document.getElementById('qrShareResultsSub').textContent = 
     `${p.name} · ${Object.values(p.runs).reduce((sum, runs) => sum + runs.length, 0)} Durchläufe gesamt`;
   
+  // Reset: hide success box, show all option boxes
+  const successDiv = document.getElementById('shareSuccessBox');
+  if (successDiv) successDiv.style.display = 'none';
+  
+  const screen = document.getElementById('screen-qr-share-results');
+  const optionBoxes = screen.querySelectorAll('div[style*="background: #11151c"]');
+  optionBoxes.forEach(box => { box.style.display = ''; });
+  
+  const infoBox = screen.querySelector('.info-box');
+  if (infoBox) infoBox.style.display = '';
+  
   // Hide QR view by default (user clicks "QR anzeigen" if needed)
   document.getElementById('qrCodeView').style.display = 'none';
   
@@ -4062,6 +4114,7 @@ async function shareResultsFile() {
       
       if (navigator.canShare(shareData)) {
         await navigator.share(shareData);
+        showShareSuccess();  // Show clean done-screen
         return;
       }
     } catch (err) {
@@ -4077,6 +4130,7 @@ async function shareResultsFile() {
         title: 'Driver.AI Ergebnisse',
         text: 'Driver.AI Daten:\n\n' + json
       });
+      showShareSuccess();  // Show clean done-screen
       return;
     } catch (err) {
       if (err.name === 'AbortError') return;
@@ -4087,6 +4141,43 @@ async function shareResultsFile() {
   alert('Direktes Teilen wird auf diesem Gerät nicht unterstützt.\n\nDatei wird stattdessen heruntergeladen — du kannst sie dann manuell teilen.');
   downloadResultsFile();
 }
+
+// Show clean success screen after successful send/share
+function showShareSuccess() {
+  // Hide all the option boxes - replace with success message
+  const screen = document.getElementById('screen-qr-share-results');
+  if (!screen) return;
+  
+  // Find and hide the option boxes
+  const optionBoxes = screen.querySelectorAll('div[style*="background: #11151c"]');
+  optionBoxes.forEach(box => { box.style.display = 'none'; });
+  
+  // Hide info box
+  const infoBox = screen.querySelector('.info-box');
+  if (infoBox) infoBox.style.display = 'none';
+  
+  // Hide QR code view if open
+  const qrView = document.getElementById('qrCodeView');
+  if (qrView) qrView.style.display = 'none';
+  
+  // Add success message
+  let successDiv = document.getElementById('shareSuccessBox');
+  if (!successDiv) {
+    successDiv = document.createElement('div');
+    successDiv.id = 'shareSuccessBox';
+    successDiv.style.cssText = 'margin-top: 40px; padding: 40px 20px; background: #0a0d12; border: 2px solid #00a86b; text-align: center;';
+    successDiv.innerHTML = `
+      <div style="font-size: 72px; line-height: 1; margin-bottom: 20px;">✓</div>
+      <div style="font-size: 22px; color: #00a86b; font-weight: bold; margin-bottom: 12px;">Daten erfolgreich gesendet!</div>
+      <div style="font-size: 14px; color: #8b95a3; margin-bottom: 24px;">Der Trainer kann deine Daten jetzt in seiner App importieren.</div>
+      <div style="font-size: 12px; color: #8b95a3; margin-top: 20px; line-height: 1.6;">Du kannst diese Seite jetzt schließen oder zurück zum Hauptmenü gehen.</div>
+    `;
+    screen.appendChild(successDiv);
+  } else {
+    successDiv.style.display = 'block';
+  }
+}
+
 
 function downloadResultsFile() {
   const payload = buildParticipantPayload();
