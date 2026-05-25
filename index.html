@@ -653,7 +653,7 @@ html, body { background: #0a0d12; color: #e8edf2; font-family: -apple-system, Bl
 <!-- HOME -->
 <div class="screen" id="screen-home">
   <div class="screen-title" onclick="toggleDiagInfo()" style="cursor:pointer;">Hauptmenü</div>
-  <div class="screen-sub">Was möchtest du tun?</div>
+  <div class="screen-sub" id="homeSubtitle">Was möchtest du tun?</div>
 
   <div id="sessionBanner" style="display:none;">
     <div class="session-banner">
@@ -663,63 +663,88 @@ html, body { background: #0a0d12; color: #e8edf2; font-family: -apple-system, Bl
     </div>
   </div>
 
-  <div class="card pending" onclick="newSession()">
-    <div class="card-row">
-      <div class="card-info">
-        <div class="card-num">OPTION 01</div>
-        <div class="card-title">Neue Session anlegen</div>
-        <div class="card-meta">Trainer-Setup · Teilnehmer eintragen</div>
+  <!-- ============================================================ -->
+  <!-- TEILNEHMER-SEKTION (immer sichtbar) -->
+  <!-- ============================================================ -->
+  <div id="participantSection">
+    <div class="card pending" onclick="startQRScanRefs()">
+      <div class="card-row">
+        <div class="card-info">
+          <div class="card-num">FÜR TEILNEHMER</div>
+          <div class="card-title">QR-Code scannen</div>
+          <div class="card-meta">Referenzen vom Trainer empfangen</div>
+        </div>
+        <div class="card-arrow">›</div>
       </div>
-      <div class="card-arrow">›</div>
+    </div>
+
+    <div class="card pending" id="participantSendCard" style="display:none;" onclick="showQRShareResults()">
+      <div class="card-row">
+        <div class="card-info">
+          <div class="card-num">FERTIG MIT TRAINING?</div>
+          <div class="card-title">Ergebnisse an Trainer senden</div>
+          <div class="card-meta">Per QR-Code · Trainer scannt dein Smartphone</div>
+        </div>
+        <div class="card-arrow">›</div>
+      </div>
     </div>
   </div>
 
-  <div class="card pending" id="continueCard" style="display:none;" onclick="enterDashboard()">
-    <div class="card-row">
-      <div class="card-info">
-        <div class="card-num">OPTION 02</div>
-        <div class="card-title">Aktuelle Session fortsetzen</div>
-        <div class="card-meta" id="continueMeta">—</div>
+  <!-- ============================================================ -->
+  <!-- TRAINER-SEKTION (nur sichtbar nach PIN-Login) -->
+  <!-- ============================================================ -->
+  <div id="trainerSection" style="display:none;">
+    <div style="margin-top: 18px; padding-top: 14px; border-top: 1px solid #232a35;">
+      <div style="font-size: 11px; letter-spacing: 0.15em; color: #ff4500; font-family: 'Menlo', monospace; margin-bottom: 12px;">▸ TRAINER-FUNKTIONEN</div>
+    </div>
+    
+    <div class="card pending" onclick="newSession()">
+      <div class="card-row">
+        <div class="card-info">
+          <div class="card-num">OPTION 01</div>
+          <div class="card-title">Neue Session anlegen</div>
+          <div class="card-meta">Trainer-Setup · Teilnehmer eintragen</div>
+        </div>
+        <div class="card-arrow">›</div>
       </div>
-      <div class="card-arrow">›</div>
+    </div>
+
+    <div class="card pending" id="continueCard" style="display:none;" onclick="enterDashboard()">
+      <div class="card-row">
+        <div class="card-info">
+          <div class="card-num">OPTION 02</div>
+          <div class="card-title">Aktuelle Session fortsetzen</div>
+          <div class="card-meta" id="continueMeta">—</div>
+        </div>
+        <div class="card-arrow">›</div>
+      </div>
+    </div>
+
+    <div class="card pending" id="overviewCard" style="display:none;" onclick="showOverview()">
+      <div class="card-row">
+        <div class="card-info">
+          <div class="card-num">OPTION 03</div>
+          <div class="card-title">Übersicht ansehen</div>
+          <div class="card-meta">Alle Teilnehmer und Ergebnisse</div>
+        </div>
+        <div class="card-arrow">›</div>
+      </div>
     </div>
   </div>
 
-  <div class="card pending" id="overviewCard" style="display:none;" onclick="showOverview()">
-    <div class="card-row">
-      <div class="card-info">
-        <div class="card-num">OPTION 03</div>
-        <div class="card-title">Übersicht ansehen</div>
-        <div class="card-meta">Alle Teilnehmer und Ergebnisse</div>
-      </div>
-      <div class="card-arrow">›</div>
-    </div>
-  </div>
-
-  <div class="card pending" id="participantSendCard" style="display:none;" onclick="showQRShareResults()">
-    <div class="card-row">
-      <div class="card-info">
-        <div class="card-num">FERTIG MIT TRAINING?</div>
-        <div class="card-title">Ergebnisse an Trainer senden</div>
-        <div class="card-meta">Per QR-Code · Trainer scannt dein Smartphone</div>
-      </div>
-      <div class="card-arrow">›</div>
-    </div>
+  <!-- ============================================================ -->
+  <!-- TEILNEHMER-LINK TEILEN (nur im Trainer-Modus sichtbar) -->
+  <!-- ============================================================ -->
+  <div id="participantLinkArea" style="display:none; margin-top: 24px; padding: 14px; background: #11151c; border: 1px solid #232a35; border-left: 4px solid #00a86b;">
+    <div style="font-size: 11px; letter-spacing: 0.15em; color: #00a86b; font-family: 'Menlo', monospace; margin-bottom: 8px;">▸ TEILNEHMER-LINK</div>
+    <div style="font-size: 12px; color: #c0c8d4; margin-bottom: 10px;">Diesen Link an Teilnehmer verteilen — sie sehen NUR den Teilnehmer-Bereich:</div>
+    <div id="participantLinkText" style="font-size: 11px; color: #ff4500; font-family: 'Menlo', monospace; word-break: break-all; padding: 8px; background: #0a0d12; margin-bottom: 8px;">—</div>
+    <button class="btn secondary small" onclick="showParticipantLinkQR()" style="margin-bottom: 4px;">📋 Als QR-Code für Teilnehmer</button>
+    <button class="btn secondary small" onclick="copyParticipantLink()">📋 Link kopieren</button>
   </div>
   
-  <!-- Diagnostic info (only shows when user taps the heading 5x) -->
+  <!-- Diagnostic info (only shows when user taps the heading) -->
   <div id="diagInfo" style="display:none; margin-top: 18px; padding: 12px; background: #11151c; border: 1px solid #c09000; font-size: 11px; font-family: 'Menlo', monospace; color: #c0c8d4; word-break: break-all;">—</div>
-
-  <div class="card pending" onclick="startQRScanRefs()">
-    <div class="card-row">
-      <div class="card-info">
-        <div class="card-num">OPTION 04</div>
-        <div class="card-title">QR-Code scannen (Teilnehmer)</div>
-        <div class="card-meta">Referenzen vom Trainer empfangen</div>
-      </div>
-      <div class="card-arrow">›</div>
-    </div>
-  </div>
 </div>
 
 <!-- SESSION SETUP -->
@@ -950,6 +975,31 @@ html, body { background: #0a0d12; color: #e8edf2; font-family: -apple-system, Bl
 </div>
 
 <!-- QR SHARE: Trainer zeigt Referenzen -->
+<!-- TEILNEHMER-LINK QR-CODE -->
+<div class="screen" id="screen-participant-link-qr">
+  <button class="back-btn" onclick="showScreen('screen-home')">‹ Zurück</button>
+  <div class="screen-title">Teilnehmer-Link als QR</div>
+  <div class="screen-sub">Diesen QR-Code an Teilnehmer-Plätzen auslegen</div>
+  
+  <div class="info-box">
+    <strong>◆ Anleitung</strong><br>
+    Teilnehmer scannen diesen QR-Code mit der iPhone/Android-Kamera.<br>
+    Der Link öffnet die App direkt im Teilnehmer-Modus.
+  </div>
+  
+  <div style="background: white; padding: 24px; margin: 16px 0; display: flex; flex-direction: column; align-items: center; border: 1px solid #232a35;">
+    <div id="participantLinkQRCanvas"></div>
+    <div id="participantLinkQRInfo" style="color: #1a2230; font-size: 11px; margin-top: 12px; font-family: 'Menlo', monospace; letter-spacing: 0.05em; text-align: center;">—</div>
+  </div>
+  
+  <div style="padding: 12px; background: #11151c; border: 1px solid #232a35; margin-top: 12px;">
+    <div style="font-size: 11px; color: #8b95a3; font-family: 'Menlo', monospace; margin-bottom: 6px;">▸ LINK</div>
+    <div id="participantLinkQRUrl" style="font-size: 12px; color: #ff4500; font-family: 'Menlo', monospace; word-break: break-all;">—</div>
+  </div>
+  
+  <button class="btn secondary" onclick="printParticipantLink()" style="margin-top: 12px;">🖨 Zum Ausdrucken öffnen</button>
+</div>
+
 <div class="screen" id="screen-qr-share-refs">
   <button class="back-btn" onclick="showScreen('screen-dashboard')">‹ Zurück</button>
   <div class="screen-title">Referenzen an Teilnehmer verteilen</div>
@@ -1401,21 +1451,57 @@ function toggleDiagInfo() {
 }
 
 function refreshHome() {
+  // URL-based mode: ?teilnehmer in URL = participant-only welcome
+  const urlParams = new URLSearchParams(window.location.search);
+  const isParticipantUrl = urlParams.has('teilnehmer') || urlParams.has('participant');
+  const isParticipantMode = state.session && state.session.participantMode;
+  const isParticipantView = isParticipantUrl || isParticipantMode;
+  
+  // Show trainer section ONLY if not on participant URL and not in participant mode
+  document.getElementById('trainerSection').style.display = isParticipantView ? 'none' : 'block';
+  
+  // Show participant link sharing area only in trainer mode
+  const linkArea = document.getElementById('participantLinkArea');
+  if (linkArea) {
+    linkArea.style.display = isParticipantView ? 'none' : 'block';
+    if (!isParticipantView) {
+      // Build participant URL
+      const baseUrl = window.location.origin + window.location.pathname;
+      const participantUrl = baseUrl + '?teilnehmer';
+      document.getElementById('participantLinkText').textContent = participantUrl;
+    }
+  }
+  
+  // Update subtitle
+  if (isParticipantMode) {
+    document.getElementById('homeSubtitle').textContent = 'Teilnehmer-Modus';
+  } else if (isParticipantUrl) {
+    document.getElementById('homeSubtitle').textContent = 'Teilnehmer-Bereich';
+  } else {
+    document.getElementById('homeSubtitle').textContent = 'Was möchtest du tun?';
+  }
+  
   if (state.session) {
     const progName = (PROGRAMS[state.session.program] || PROGRAMS.basis).name;
     document.getElementById('sessionBanner').style.display='block';
-    document.getElementById('continueCard').style.display='block';
     
-    if (state.session.participantMode) {
-      // PARTICIPANT MODE: hide overview, show personalized info
+    if (isParticipantMode) {
       const p = state.session.participants.find(x => x.id === state.session.assignedParticipantId);
       const myName = p ? p.name : 'Teilnehmer';
-      document.getElementById('overviewCard').style.display='none';
       document.getElementById('participantSendCard').style.display='block';
       document.getElementById('bannerTitle').textContent = myName;
       document.getElementById('bannerMeta').textContent = `${progName} · ${state.session.location} · ${state.session.date}`;
-      document.getElementById('continueMeta').textContent = 'Zu meinen Übungen';
+      document.getElementById('continueCard').style.display='none';
+      document.getElementById('overviewCard').style.display='none';
+    } else if (isParticipantUrl) {
+      // Participant URL but no QR scanned yet: hide trainer session info
+      document.getElementById('sessionBanner').style.display='none';
+      document.getElementById('continueCard').style.display='none';
+      document.getElementById('overviewCard').style.display='none';
+      document.getElementById('participantSendCard').style.display='none';
     } else {
+      // Trainer URL with session
+      document.getElementById('continueCard').style.display='block';
       document.getElementById('overviewCard').style.display='block';
       document.getElementById('participantSendCard').style.display='none';
       document.getElementById('bannerTitle').textContent = state.session.location;
@@ -1428,6 +1514,115 @@ function refreshHome() {
     document.getElementById('overviewCard').style.display='none';
     document.getElementById('participantSendCard').style.display='none';
   }
+}
+
+// ============================================================================
+// PARTICIPANT LINK SHARING
+// ============================================================================
+function showParticipantLinkQR() {
+  const baseUrl = window.location.origin + window.location.pathname;
+  const participantUrl = baseUrl + '?teilnehmer';
+  
+  showScreen('screen-participant-link-qr');
+  document.getElementById('participantLinkQRUrl').textContent = participantUrl;
+  document.getElementById('participantLinkQRInfo').textContent = 'TEILNEHMER-LINK · ' + participantUrl.length + ' BYTES';
+  
+  const container = document.getElementById('participantLinkQRCanvas');
+  container.innerHTML = '<div style="padding: 60px; color: #8b95a3;">⏳ QR wird erzeugt...</div>';
+  
+  const tryGen = (attempts) => {
+    if (window.QRCode) {
+      container.innerHTML = '';
+      QRCode.toCanvas(participantUrl, {
+        width: 400, margin: 3, errorCorrectionLevel: 'M',
+        color: { dark: '#000000', light: '#ffffff' }
+      }, function(err, canvas) {
+        if (err) {
+          container.innerHTML = '<div style="color:#c82e4e; padding:20px;">Fehler: ' + (err.message || err) + '</div>';
+          return;
+        }
+        canvas.style.maxWidth = '100%';
+        canvas.style.imageRendering = 'pixelated';
+        container.appendChild(canvas);
+      });
+      return;
+    }
+    if (attempts >= 30) {
+      container.innerHTML = '<div style="color:#c82e4e; padding:20px;">QR-Library nicht geladen</div>';
+      return;
+    }
+    setTimeout(() => tryGen(attempts + 1), 200);
+  };
+  tryGen(0);
+}
+
+function copyParticipantLink() {
+  const baseUrl = window.location.origin + window.location.pathname;
+  const participantUrl = baseUrl + '?teilnehmer';
+  
+  if (navigator.clipboard) {
+    navigator.clipboard.writeText(participantUrl).then(() => {
+      alert('✓ Link kopiert!\n\n' + participantUrl + '\n\nDu kannst ihn jetzt in WhatsApp, Mail etc. einfügen.');
+    }).catch(() => {
+      prompt('Link manuell kopieren:', participantUrl);
+    });
+  } else {
+    prompt('Link manuell kopieren:', participantUrl);
+  }
+}
+
+function printParticipantLink() {
+  const baseUrl = window.location.origin + window.location.pathname;
+  const participantUrl = baseUrl + '?teilnehmer';
+  const sessionName = state.session ? state.session.location : 'Driver.AI Training';
+  
+  // Get the existing canvas
+  const existingCanvas = document.querySelector('#participantLinkQRCanvas canvas');
+  if (!existingCanvas) {
+    alert('QR-Code noch nicht generiert.');
+    return;
+  }
+  
+  const dataUrl = existingCanvas.toDataURL('image/png');
+  const printWindow = window.open('', '_blank');
+  printWindow.document.write(`
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <title>Teilnehmer-Link Driver.AI</title>
+      <style>
+        body { font-family: Arial, sans-serif; text-align: center; padding: 40px; }
+        h1 { color: #ff4500; font-size: 32px; margin-bottom: 8px; }
+        h2 { color: #1a2230; font-size: 20px; margin-top: 0; font-weight: normal; }
+        .qr { margin: 30px auto; max-width: 400px; }
+        .qr img { width: 100%; image-rendering: pixelated; }
+        .url { font-family: monospace; font-size: 14px; color: #555; margin-top: 12px; word-break: break-all; }
+        .info { background: #f0f2f5; padding: 20px; margin-top: 20px; border-left: 4px solid #ff4500; text-align: left; max-width: 500px; margin-left: auto; margin-right: auto; }
+        @media print {
+          body { padding: 20px; }
+        }
+      </style>
+    </head>
+    <body>
+      <h1>DRIVER.AI</h1>
+      <h2>${sessionName} — Teilnehmer-Bereich</h2>
+      <div class="qr">
+        <img src="${dataUrl}" alt="QR Code">
+        <div class="url">${participantUrl}</div>
+      </div>
+      <div class="info">
+        <strong>So funktioniert's:</strong><br>
+        1. Diesen QR-Code mit der Handy-Kamera scannen<br>
+        2. Die App öffnet sich im Browser<br>
+        3. Auf "QR-Code scannen" tippen<br>
+        4. Den persönlichen QR-Code vom Trainer scannen<br>
+        5. Übungen fahren — die Bewertung kommt nach dem Training
+      </div>
+      <button onclick="window.print()" style="margin-top: 30px; padding: 14px 32px; font-size: 16px; background: #ff4500; color: white; border: none; cursor: pointer;">Drucken</button>
+    </body>
+    </html>
+  `);
+  printWindow.document.close();
 }
 
 function newSession() {
@@ -3266,13 +3461,15 @@ function generateRefsQR(targetParticipant) {
   
   try {
     QRCode.toCanvas(json, {
-      width: 280, margin: 2, errorCorrectionLevel: 'M',
-      color: { dark: '#1a2230', light: '#ffffff' }
+      width: 400, margin: 3, errorCorrectionLevel: 'M',
+      color: { dark: '#000000', light: '#ffffff' }
     }, function(err, canvas) {
       if (err) { 
         container.innerHTML = '<div style="padding:20px; color:#c82e4e; font-size:12px; word-break:break-all;"><strong>QR-Code-Fehler:</strong><br>' + (err.message || err.toString() || 'Unbekannt') + '<br><br><strong>Daten-Größe:</strong> ' + json.length + ' Bytes</div>'; 
         return; 
       }
+      canvas.style.maxWidth = '100%';
+      canvas.style.imageRendering = 'pixelated';
       container.appendChild(canvas);
       document.getElementById('qrRefsInfo').textContent = 
         `${state.session.location} · NUR FÜR ${targetParticipant.name.toUpperCase()} · ${json.length} BYTES`;
@@ -3465,7 +3662,7 @@ function generateResultsQR(participant) {
   };
   
   const json = JSON.stringify(payload);
-  const MAX_SIZE = 2200;
+  const MAX_SIZE = 800;  // Lower size keeps QR scannable on small screens
   
   if (json.length <= MAX_SIZE) {
     qrResultsData = [json];
@@ -3497,11 +3694,14 @@ function renderCurrentResultsQR() {
   container.innerHTML = '';
   const data = qrResultsData[qrResultsIndex];
   
+  // Use larger canvas (400px) and CSS to scale, so QR is sharper when scanned
   QRCode.toCanvas(data, {
-    width: 280, margin: 2, errorCorrectionLevel: 'M',
-    color: { dark: '#1a2230', light: '#ffffff' }
+    width: 400, margin: 3, errorCorrectionLevel: 'L',
+    color: { dark: '#000000', light: '#ffffff' }
   }, function(err, canvas) {
     if (err) { container.innerHTML = '<div style="color:#c82e4e;">Fehler: ' + err.message + '</div>'; return; }
+    canvas.style.maxWidth = '100%';
+    canvas.style.imageRendering = 'pixelated';
     container.appendChild(canvas);
     if (qrResultsData.length > 1) {
       document.getElementById('qrResultsInfo').textContent = 
