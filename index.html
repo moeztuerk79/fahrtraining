@@ -749,7 +749,7 @@ html, body { background: #0a0d12; color: #e8edf2; font-family: -apple-system, Bl
   <!-- Copyright Footer -->
   <div style="margin-top: 40px; padding-top: 20px; border-top: 1px solid #1a2230; text-align: center;">
     <div style="font-size: 10px; color: #555f6e; font-family: 'Menlo', monospace; letter-spacing: 0.05em;">© 2026 Muhammed Öztürk · Alle Rechte vorbehalten</div>
-    <div style="font-size: 9px; color: #3a4250; font-family: 'Menlo', monospace; margin-top: 4px;">DRIVER.AI · Fahrtraining-Bewertung · v16</div>
+    <div style="font-size: 9px; color: #3a4250; font-family: 'Menlo', monospace; margin-top: 4px;">DRIVER.AI · Fahrtraining-Bewertung · v18</div>
   </div>
 </div>
 
@@ -1187,7 +1187,7 @@ const PROGRAMS = {
       { id:'slalom', num:'01', name:'Slalom', desc:'Pylonen-Slalom mit 18m Abstand, 7 Pylonen. Zügige saubere Durchfahrt, Stillstand in Zielzone.',
         refType:'time', tolerance:4.0,
         criteria:[
-          {id:'pylons', name:'Alle Pylonen stehen geblieben', weight:'std', source:'trainer', pass:2.0, fail:5.0},
+          {id:'pylons', name:'Umgefahrene Pylonen', weight:'std', source:'trainer', pass:2.0, fail:5.0},
           {id:'time', name:'Zielzeit eingehalten', weight:'bns', source:'time', pass:1.0, fail:4.0},
           {id:'stop', name:'Stillstand in Zielzone', weight:'ko', source:'auto', pass:2.0, fail:5.0}
         ]},
@@ -1203,14 +1203,14 @@ const PROGRAMS = {
         criteria:[
           {id:'target_zone', name:'Zielzone durchfahren', weight:'std', source:'auto', pass:2.0, fail:5.0},
           {id:'entry_speed', name:'Eintrittsgeschwindigkeit (67-73 km/h)', weight:'ko', source:'auto', pass:2.0, fail:5.0},
-          {id:'pylons', name:'Alle Pylonen stehen geblieben', weight:'ko', source:'trainer', pass:2.0, fail:4.0}
+          {id:'pylons', name:'Umgefahrene Pylonen', weight:'ko', source:'trainer', pass:2.0, fail:4.0}
         ]},
       { id:'ba', num:'04', name:'Bremsen und Ausweichen', desc:'Bremsen und gleichzeitig ausweichen. 70 km/h Eintrittsgeschwindigkeit, ABS mit Ausweichmanöver.',
         refType:'speed', refValue:70,
         criteria:[
           {id:'target_zone', name:'Zielzone durchfahren', weight:'std', source:'auto', pass:2.0, fail:5.0},
           {id:'entry_speed', name:'Eintrittsgeschwindigkeit (67-73 km/h)', weight:'ko', source:'auto', pass:2.0, fail:5.0},
-          {id:'pylons', name:'Alle Pylonen stehen geblieben', weight:'ko', source:'trainer', pass:2.0, fail:4.0}
+          {id:'pylons', name:'Umgefahrene Pylonen', weight:'ko', source:'trainer', pass:2.0, fail:4.0}
         ]}
     ]
   },
@@ -1224,7 +1224,7 @@ const PROGRAMS = {
           {id:'gforce', name:'Querbeschleunigung 0.7g+ erreicht', weight:'std', source:'auto', pass:2.0, fail:5.0},
           {id:'constant', name:'Geschwindigkeit konstant (±5 km/h)', weight:'std', source:'auto', pass:2.0, fail:5.0},
           {id:'spin', name:'Kein Spin / Kontrolle behalten', weight:'ko', source:'auto', pass:2.0, fail:5.0},
-          {id:'steering', name:'Lenktechnik sauber & früh', weight:'bns', source:'trainer-3', pass:2.0, fail:5.0},
+          {id:'steering', name:'Lenktechnik sauber & früh', weight:'bns', source:'trainer-3', pass:1.0, fail:4.0},
           {id:'vision', name:'Blickführung weit voraus', weight:'std', source:'trainer-3', pass:2.0, fail:5.0}
         ]},
       { id:'hslalom', num:'02', name:'Hochgeschwindigkeits-Slalom', desc:'Slalom bei 80+ km/h. Längere Pylonen-Abstände, höhere Anforderung an Lenkrhythmus.',
@@ -1232,8 +1232,8 @@ const PROGRAMS = {
         criteria:[
           {id:'time', name:'Zielzeit eingehalten', weight:'std', source:'time', pass:2.0, fail:5.0},
           {id:'max_speed', name:'Mindest-Speed 75 km/h erreicht', weight:'ko', source:'auto', pass:2.0, fail:5.0},
-          {id:'pylons', name:'Alle Pylonen stehen geblieben', weight:'std', source:'trainer', pass:2.0, fail:5.0},
-          {id:'rhythm', name:'Lenkrhythmus gleichmäßig', weight:'bns', source:'trainer-3', pass:2.0, fail:5.0},
+          {id:'pylons', name:'Umgefahrene Pylonen', weight:'std', source:'trainer', pass:2.0, fail:5.0},
+          {id:'rhythm', name:'Lenkrhythmus gleichmäßig', weight:'bns', source:'trainer-3', pass:1.0, fail:4.0},
           {id:'throttle', name:'Gasdosierung kontrolliert', weight:'std', source:'trainer-3', pass:2.0, fail:5.0}
         ]},
       { id:'hslc', num:'03', name:'Doppelter Spurwechsel Hochspeed', desc:'Spurwechsel mit 100 km/h Eintrittsgeschwindigkeit. Schnelle Reaktion gefragt.',
@@ -1241,8 +1241,8 @@ const PROGRAMS = {
         criteria:[
           {id:'target_zone', name:'Zielzone durchfahren', weight:'std', source:'auto', pass:2.0, fail:5.0},
           {id:'entry_speed', name:'Eintrittsgeschwindigkeit (97-103 km/h)', weight:'ko', source:'auto', pass:2.0, fail:5.0},
-          {id:'pylons', name:'Alle Pylonen stehen geblieben', weight:'ko', source:'trainer', pass:2.0, fail:4.0},
-          {id:'reaction', name:'Reaktion schnell & sicher', weight:'bns', source:'trainer-3', pass:2.0, fail:5.0},
+          {id:'pylons', name:'Umgefahrene Pylonen', weight:'ko', source:'trainer', pass:2.0, fail:4.0},
+          {id:'reaction', name:'Reaktion schnell & sicher', weight:'bns', source:'trainer-3', pass:1.0, fail:4.0},
           {id:'precision', name:'Lenkpräzision (keine Korrekturen)', weight:'std', source:'trainer-3', pass:2.0, fail:5.0}
         ]},
       { id:'handling', num:'04', name:'Handlingkurs', desc:'Kurvenkombination mit mehreren Richtungswechseln. Test der gesamten Fahrtechnik.',
@@ -1251,7 +1251,7 @@ const PROGRAMS = {
           {id:'time', name:'Zielzeit eingehalten', weight:'std', source:'time', pass:2.0, fail:5.0},
           {id:'max_g', name:'Max Querbeschl. >0.6g', weight:'std', source:'auto', pass:2.0, fail:5.0},
           {id:'spin', name:'Kein Spin / Abflug', weight:'ko', source:'auto', pass:2.0, fail:5.0},
-          {id:'line', name:'Linienwahl sauber', weight:'bns', source:'trainer-3', pass:2.0, fail:5.0},
+          {id:'line', name:'Linienwahl sauber', weight:'bns', source:'trainer-3', pass:1.0, fail:4.0},
           {id:'transitions', name:'Übergänge flüssig', weight:'std', source:'trainer-3', pass:2.0, fail:5.0}
         ]}
     ]
@@ -1266,7 +1266,7 @@ const PROGRAMS = {
           {id:'counter', name:'Gegenlenken erkannt (Gier-Reaktion)', weight:'std', source:'auto', pass:2.0, fail:5.0},
           {id:'recovery', name:'Fahrzeug stabilisiert', weight:'ko', source:'auto', pass:2.0, fail:5.0},
           {id:'no_spin', name:'Kein vollständiger Spin', weight:'ko', source:'auto', pass:2.0, fail:5.0},
-          {id:'reaction', name:'Reaktion früh & richtig', weight:'bns', source:'trainer-3', pass:2.0, fail:5.0},
+          {id:'reaction', name:'Reaktion früh & richtig', weight:'bns', source:'trainer-3', pass:1.0, fail:4.0},
           {id:'composure', name:'Ruhe & Kontrolle bewahrt', weight:'std', source:'trainer-3', pass:2.0, fail:5.0}
         ]},
       { id:'wetcurve', name:'Nasse Kurve', num:'02', desc:'Kurvenfahrt auf nasser Fahrbahn. Grenzbereich erfahren, ESP-Eingriffe erleben.',
@@ -1275,7 +1275,7 @@ const PROGRAMS = {
           {id:'entry_speed', name:'Eintrittsgeschwindigkeit erreicht', weight:'std', source:'auto', pass:2.0, fail:5.0},
           {id:'gforce', name:'Querbeschl. im Grenzbereich (0.4-0.6g)', weight:'std', source:'auto', pass:2.0, fail:5.0},
           {id:'control', name:'Kontrolle behalten (kein Untersteuern hart)', weight:'ko', source:'auto', pass:2.0, fail:5.0},
-          {id:'gas', name:'Gas/Brems-Einsatz dosiert', weight:'bns', source:'trainer-3', pass:2.0, fail:5.0},
+          {id:'gas', name:'Gas/Brems-Einsatz dosiert', weight:'bns', source:'trainer-3', pass:1.0, fail:4.0},
           {id:'vision', name:'Blickführung beibehalten', weight:'std', source:'trainer-3', pass:2.0, fail:5.0}
         ]},
       { id:'emerg', num:'03', name:'Notbremsung mit Ausweichen', desc:'ABS-Vollbremsung aus 90 km/h mit gleichzeitigem Ausweichen vor Hindernis.',
@@ -1284,8 +1284,8 @@ const PROGRAMS = {
           {id:'entry_speed', name:'Eintrittsgeschwindigkeit (87-93 km/h)', weight:'ko', source:'auto', pass:2.0, fail:5.0},
           {id:'full_brake', name:'Vollbremsung erkannt (>0.8g)', weight:'std', source:'auto', pass:2.0, fail:5.0},
           {id:'target_zone', name:'Zielzone getroffen', weight:'std', source:'auto', pass:2.0, fail:5.0},
-          {id:'pylons', name:'Hindernis-Pylonen stehen geblieben', weight:'ko', source:'trainer', pass:2.0, fail:5.0},
-          {id:'coolness', name:'Coolness unter Stress', weight:'bns', source:'trainer-3', pass:2.0, fail:5.0}
+          {id:'pylons', name:'Umgefahrene Hindernis-Pylonen', weight:'ko', source:'trainer', pass:2.0, fail:5.0},
+          {id:'coolness', name:'Coolness unter Stress', weight:'bns', source:'trainer-3', pass:1.0, fail:4.0}
         ]},
       { id:'driftrec', num:'04', name:'Übersteuern abfangen', desc:'Bewusst provoziertes Übersteuern (Lastwechsel). Kontrolle behalten, Linie halten.',
         refType:'speed', refValue:70,
@@ -1293,7 +1293,7 @@ const PROGRAMS = {
           {id:'oversteer', name:'Übersteuern eindeutig provoziert', weight:'std', source:'auto', pass:2.0, fail:5.0},
           {id:'recovery', name:'Fahrzeug abgefangen', weight:'ko', source:'auto', pass:2.0, fail:5.0},
           {id:'no_spin', name:'Kein Spin / 360°', weight:'ko', source:'auto', pass:2.0, fail:5.0},
-          {id:'steering', name:'Gegenlenken früh & richtig', weight:'bns', source:'trainer-3', pass:2.0, fail:5.0},
+          {id:'steering', name:'Gegenlenken früh & richtig', weight:'bns', source:'trainer-3', pass:1.0, fail:4.0},
           {id:'throttle', name:'Gas-Einsatz beim Abfangen', weight:'std', source:'trainer-3', pass:2.0, fail:5.0}
         ]}
     ]
@@ -1307,9 +1307,9 @@ const PROGRAMS = {
         criteria:[
           {id:'time', name:'Zielzeit eingehalten', weight:'std', source:'time', pass:2.0, fail:5.0},
           {id:'max_speed', name:'Mindest-Speed 95 km/h erreicht', weight:'ko', source:'auto', pass:2.0, fail:5.0},
-          {id:'pylons', name:'Alle Pylonen stehen geblieben', weight:'std', source:'trainer', pass:2.0, fail:5.0},
+          {id:'pylons', name:'Umgefahrene Pylonen', weight:'std', source:'trainer', pass:2.0, fail:5.0},
           {id:'gforce', name:'Querbeschl. > 0.7g', weight:'std', source:'auto', pass:2.0, fail:5.0},
-          {id:'rhythm', name:'Lenkrhythmus sauber & sportlich', weight:'bns', source:'trainer-3', pass:2.0, fail:5.0},
+          {id:'rhythm', name:'Lenkrhythmus sauber & sportlich', weight:'bns', source:'trainer-3', pass:1.0, fail:4.0},
           {id:'precision', name:'Präzision in jeder Pylone', weight:'std', source:'trainer-3', pass:2.0, fail:5.0}
         ]},
       { id:'limitcircle', num:'02', name:'Kreisbahn am Limit', desc:'Konstante Kreisfahrt am physikalischen Grip-Limit. 0.9g+ erreichen, ESP-Eingriffe minimieren.',
@@ -1318,18 +1318,18 @@ const PROGRAMS = {
           {id:'gforce', name:'Querbeschl. > 0.85g erreicht', weight:'std', source:'auto', pass:2.0, fail:5.0},
           {id:'constant', name:'Geschwindigkeit konstant (±3 km/h)', weight:'std', source:'auto', pass:2.0, fail:5.0},
           {id:'spin', name:'Kein Spin / Kontrolle behalten', weight:'ko', source:'auto', pass:2.0, fail:5.0},
-          {id:'limit_feel', name:'Grip-Limit erspürt & gehalten', weight:'bns', source:'trainer-3', pass:2.0, fail:5.0},
-          {id:'throttle', name:'Gasdosierung am Limit fein', weight:'bns', source:'trainer-3', pass:2.0, fail:5.0},
+          {id:'limit_feel', name:'Grip-Limit erspürt & gehalten', weight:'bns', source:'trainer-3', pass:1.0, fail:4.0},
+          {id:'throttle', name:'Gasdosierung am Limit fein', weight:'bns', source:'trainer-3', pass:1.0, fail:4.0},
           {id:'vision', name:'Blickführung weit voraus', weight:'std', source:'trainer-3', pass:2.0, fail:5.0}
         ]},
       { id:'handlingpro', num:'03', name:'Handling-Parcours Pro', desc:'Anspruchsvoller Kurvenparcours mit Rechts-Links-Kombinationen, Bremszonen, Beschleunigungsphasen.',
         refType:'time', tolerance:4.0,
         criteria:[
-          {id:'time', name:'Zielzeit eingehalten', weight:'bns', source:'time', pass:2.0, fail:5.0},
+          {id:'time', name:'Zielzeit eingehalten', weight:'bns', source:'time', pass:1.0, fail:4.0},
           {id:'max_g', name:'Max Querbeschl. > 0.8g', weight:'std', source:'auto', pass:2.0, fail:5.0},
           {id:'spin', name:'Kein Spin / Abflug', weight:'ko', source:'auto', pass:2.0, fail:5.0},
           {id:'brake_pts', name:'Bremspunkte sauber', weight:'std', source:'auto', pass:2.0, fail:5.0},
-          {id:'line', name:'Ideallinie konsequent', weight:'bns', source:'trainer-3', pass:2.0, fail:5.0},
+          {id:'line', name:'Ideallinie konsequent', weight:'bns', source:'trainer-3', pass:1.0, fail:4.0},
           {id:'transitions', name:'Lastwechsel kontrolliert', weight:'std', source:'trainer-3', pass:2.0, fail:5.0},
           {id:'consistency', name:'Wiederholbarkeit der Runden', weight:'imp', source:'trainer-3', pass:2.0, fail:5.0}
         ]},
@@ -1339,8 +1339,8 @@ const PROGRAMS = {
           {id:'oversteer', name:'Drift eingeleitet (>15° Gier)', weight:'std', source:'auto', pass:2.0, fail:5.0},
           {id:'no_spin', name:'Kein voller Spin', weight:'ko', source:'auto', pass:2.0, fail:5.0},
           {id:'recovery', name:'Sauber abgefangen', weight:'ko', source:'auto', pass:2.0, fail:5.0},
-          {id:'duration', name:'Drift > 2 Sekunden gehalten', weight:'bns', source:'trainer-3', pass:2.0, fail:5.0},
-          {id:'angle_ctrl', name:'Driftwinkel kontrolliert', weight:'bns', source:'trainer-3', pass:2.0, fail:5.0},
+          {id:'duration', name:'Drift > 2 Sekunden gehalten', weight:'bns', source:'trainer-3', pass:1.0, fail:4.0},
+          {id:'angle_ctrl', name:'Driftwinkel kontrolliert', weight:'bns', source:'trainer-3', pass:1.0, fail:4.0},
           {id:'throttle', name:'Gas-/Lenkbalance', weight:'std', source:'trainer-3', pass:2.0, fail:5.0}
         ]}
     ]
@@ -1352,11 +1352,11 @@ const PROGRAMS = {
       { id:'laptime', num:'01', name:'Rundenzeit', desc:'Vollständige Runde auf der Rennstrecke. GPS misst Zeit, Trainer bewertet Linie & Konstanz.',
         refType:'time', tolerance:5.0,
         criteria:[
-          {id:'time', name:'Zielzeit eingehalten (Trainer +5s)', weight:'bns', source:'time', pass:2.0, fail:5.0},
+          {id:'time', name:'Zielzeit eingehalten (Trainer +5s)', weight:'bns', source:'time', pass:1.0, fail:4.0},
           {id:'max_speed', name:'Top-Speed erreicht (auf Gerade)', weight:'std', source:'auto', pass:2.0, fail:5.0},
           {id:'max_g', name:'Max Querbeschl. > 1.0g (Kurven)', weight:'std', source:'auto', pass:2.0, fail:5.0},
           {id:'spin', name:'Kein Abflug / Spin', weight:'ko', source:'auto', pass:2.0, fail:5.0},
-          {id:'line', name:'Ideallinie befahren', weight:'bns', source:'trainer-3', pass:2.0, fail:5.0},
+          {id:'line', name:'Ideallinie befahren', weight:'bns', source:'trainer-3', pass:1.0, fail:4.0},
           {id:'brake_pts', name:'Bremspunkte konsequent getroffen', weight:'imp', source:'trainer-3', pass:2.0, fail:5.0},
           {id:'apex', name:'Scheitelpunkte sauber', weight:'imp', source:'trainer-3', pass:2.0, fail:5.0}
         ]},
@@ -1366,8 +1366,8 @@ const PROGRAMS = {
           {id:'max_speed', name:'Anfahrt > 170 km/h', weight:'std', source:'auto', pass:2.0, fail:5.0},
           {id:'full_brake', name:'Vollbremsung (-1.0g+)', weight:'std', source:'auto', pass:2.0, fail:5.0},
           {id:'spin', name:'Kein Blockieren / Kontrolle', weight:'ko', source:'auto', pass:2.0, fail:5.0},
-          {id:'brake_late', name:'Spät genug gebremst', weight:'bns', source:'trainer-3', pass:2.0, fail:5.0},
-          {id:'trail_brake', name:'Trail-Braking sauber', weight:'bns', source:'trainer-3', pass:2.0, fail:5.0},
+          {id:'brake_late', name:'Spät genug gebremst', weight:'bns', source:'trainer-3', pass:1.0, fail:4.0},
+          {id:'trail_brake', name:'Trail-Braking sauber', weight:'bns', source:'trainer-3', pass:1.0, fail:4.0},
           {id:'turn_in', name:'Einlenkpunkt richtig', weight:'std', source:'trainer-3', pass:2.0, fail:5.0}
         ]},
       { id:'fastcorner', num:'03', name:'Schnelle Kurve', desc:'Hochgeschwindigkeitskurve. Anliegen, max Speed durch Kurve, sauberer Ausgang.',
@@ -1376,8 +1376,8 @@ const PROGRAMS = {
           {id:'gforce', name:'Querbeschl. > 0.95g durchgehend', weight:'std', source:'auto', pass:2.0, fail:5.0},
           {id:'constant', name:'Geschwindigkeit konstant durch Kurve', weight:'std', source:'auto', pass:2.0, fail:5.0},
           {id:'spin', name:'Kein Abflug / Untersteuern hart', weight:'ko', source:'auto', pass:2.0, fail:5.0},
-          {id:'line', name:'Linie sauber von außen-innen-außen', weight:'bns', source:'trainer-3', pass:2.0, fail:5.0},
-          {id:'limit_feel', name:'Grip-Limit ausgereizt', weight:'bns', source:'trainer-3', pass:2.0, fail:5.0},
+          {id:'line', name:'Linie sauber von außen-innen-außen', weight:'bns', source:'trainer-3', pass:1.0, fail:4.0},
+          {id:'limit_feel', name:'Grip-Limit ausgereizt', weight:'bns', source:'trainer-3', pass:1.0, fail:4.0},
           {id:'exit_speed', name:'Kurvenausgang früh aufs Gas', weight:'imp', source:'trainer-3', pass:2.0, fail:5.0}
         ]},
       { id:'consistency', num:'04', name:'Konstanz über Stint', desc:'Mehrere Runden hintereinander. Streuung der Rundenzeiten als Konstanz-Indikator.',
@@ -1386,8 +1386,8 @@ const PROGRAMS = {
           {id:'time', name:'Beste Runde nahe Zielzeit', weight:'std', source:'time', pass:2.0, fail:5.0},
           {id:'max_g', name:'Max Querbeschl. > 0.9g', weight:'std', source:'auto', pass:2.0, fail:5.0},
           {id:'spin', name:'Stint ohne Spin/Abflug', weight:'ko', source:'auto', pass:2.0, fail:5.0},
-          {id:'lap_var', name:'Runden-Streuung < 2s (Konstanz)', weight:'bns', source:'trainer-3', pass:2.0, fail:5.0},
-          {id:'tire_mgmt', name:'Reifen-Management', weight:'bns', source:'trainer-3', pass:2.0, fail:5.0},
+          {id:'lap_var', name:'Runden-Streuung < 2s (Konstanz)', weight:'bns', source:'trainer-3', pass:1.0, fail:4.0},
+          {id:'tire_mgmt', name:'Reifen-Management', weight:'bns', source:'trainer-3', pass:1.0, fail:4.0},
           {id:'focus', name:'Konzentration über den Stint', weight:'imp', source:'trainer-3', pass:2.0, fail:5.0}
         ]}
     ]
@@ -1966,19 +1966,16 @@ function renderReviewList() {
   });
 }
 
-// Central helper: compute note for a criterion (handles staged pylon grading)
+// Central helper: compute note for a criterion (binary pylon grading per original schema)
 function computeCriterionNote(c, run) {
   // Trainer 3-stage criterion (pass/partial/fail)
   if (c.source === 'trainer-3' && run.trainerInputs && run.trainerInputs[c.id]) {
     const v = run.trainerInputs[c.id];
-    return v === 'pass' ? 2.0 : v === 'partial' ? 3.0 : 5.0;
+    return v === 'pass' ? c.pass : v === 'partial' ? 3.0 : c.fail;
   }
-  // Trainer pylon criterion (staged: 0/1/2/3+ → 2/3/4/5)
+  // Trainer pylon criterion (binary: 0 = pass, ≥1 = fail, per original Sport Driving schema)
   if (c.source === 'trainer' && run.pylonCount !== undefined && run.pylonCount !== null) {
-    if (run.pylonCount === 0) return 2.0;
-    if (run.pylonCount === 1) return 3.0;
-    if (run.pylonCount === 2) return 4.0;
-    return 5.0;
+    return run.pylonCount === 0 ? c.pass : c.fail;
   }
   // Default: binary pass/fail from evals
   const passed = run.evals[c.id];
@@ -2125,13 +2122,12 @@ function updateBulkFilterButtons() {
 }
 
 // Display info for a sensor-based criterion (auto/time): returns
-// { passed: bool, warned: bool, actual: "55 km/h", target: "67-73 km/h", note?: "leicht über Soll" }
-// passed=true + warned=true means: counts as pass for grading, but UI shows ⚠
+// { passed: bool, actual: "55 km/h", target: "65-75 km/h" }
 // so the bulk-eval UI can show the trainer exactly WHY a run failed.
 function getCriterionDisplay(c, ex, run) {
   const stats = run.stats || {};
   const passed = run.evals && run.evals[c.id] === true;
-  let actual = '—', target = '', warned = false, note = '';
+  let actual = '—', target = '';
 
   if (c.source === 'time') {
     const ref = state.session.references[ex.id];
@@ -2146,26 +2142,13 @@ function getCriterionDisplay(c, ex, run) {
       actual = (stats.minLongG || 0).toFixed(2) + ' g';
       target = '< -0.5 g';
     } else if (c.id === 'entry_speed') {
-      const sp = stats.maxSpeed || 0;
-      actual = Math.round(sp) + ' km/h';
+      actual = Math.round(stats.maxSpeed || 0) + ' km/h';
       if (ex.refValue === 180) target = '≥ 170 km/h';
       else if (ex.refValue === 160) target = '≥ 155 km/h';
-      else if (ex.refValue === 100) {
-        target = '97 – 103 km/h';
-        if (passed && sp > 103) { warned = true; note = 'leicht über Soll'; }
-      }
-      else if (ex.refValue === 90) {
-        target = '87 – 93 km/h';
-        if (passed && sp > 93) { warned = true; note = 'leicht über Soll'; }
-      }
-      else if (ex.refValue === 70) {
-        target = '67 – 73 km/h';
-        if (passed && sp > 73) { warned = true; note = 'leicht über Soll'; }
-      }
-      else if (ex.refValue === 60) {
-        target = '55 – 65 km/h';
-        if (passed && sp > 65) { warned = true; note = 'leicht über Soll'; }
-      }
+      else if (ex.refValue === 100) target = '95 – 105 km/h';
+      else if (ex.refValue === 90)  target = '85 – 95 km/h';
+      else if (ex.refValue === 70)  target = '65 – 75 km/h';
+      else if (ex.refValue === 60)  target = '55 – 65 km/h';
       else target = '~' + ex.refValue + ' km/h';
     } else if (c.id === 'full_brake') {
       actual = (stats.minLongG || 0).toFixed(2) + ' g';
@@ -2222,7 +2205,7 @@ function getCriterionDisplay(c, ex, run) {
     }
   }
 
-  return { passed, warned, actual, target, note };
+  return { passed, actual, target };
 }
 
 function renderBulkEval() {
@@ -2327,21 +2310,14 @@ function renderBulkEval() {
             const row = document.createElement('div');
             row.style.cssText = 'display: flex; justify-content: space-between; align-items: center; padding: 3px 0; font-size: 11px;';
             
-            // Three states: passed clean (✓ green), passed with warning (⚠ yellow), failed (✗ red)
-            let icon, iconColor, valueColor;
-            if (!info.passed) {
-              icon = '✗'; iconColor = '#c82e4e'; valueColor = '#d9643a';
-            } else if (info.warned) {
-              icon = '⚠'; iconColor = '#c09000'; valueColor = '#c09000';
-            } else {
-              icon = '✓'; iconColor = '#00a86b'; valueColor = '#c0c8d4';
-            }
+            const icon = info.passed ? '✓' : '✗';
+            const iconColor = info.passed ? '#00a86b' : '#c82e4e';
+            const valueColor = info.passed ? '#c0c8d4' : '#d9643a';
             const weightLabel = c.weight === 'ko' ? ' (K.O.)' : c.weight === 'bns' ? ' (Bonus 3×)' : c.weight === 'imp' ? ' (Wichtig 2×)' : '';
-            const noteText = info.note ? ' <span style="color: #c09000; font-style: italic;">· ' + info.note + '</span>' : '';
             
             row.innerHTML = `
               <div style="flex: 1; color: #c0c8d4;">
-                <span style="color: ${iconColor}; font-weight: bold; margin-right: 6px;">${icon}</span>${c.name}<span style="color: #8b95a3;">${weightLabel}</span>${noteText}
+                <span style="color: ${iconColor}; font-weight: bold; margin-right: 6px;">${icon}</span>${c.name}<span style="color: #8b95a3;">${weightLabel}</span>
               </div>
               <div style="font-family: 'Menlo', monospace; font-size: 10px; color: #8b95a3; text-align: right; margin-left: 8px;">
                 <span style="color: ${valueColor};">${info.actual}</span>${info.target ? ' <span style="opacity:0.6;">/ ' + info.target + '</span>' : ''}
@@ -2382,12 +2358,14 @@ function renderBulkEval() {
             btnRow.style.cssText = 'display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px;';
             
             if (c.source === 'trainer') {
-              // Pylonen-style: 0 / 1 / 2 / 3+ with graduated colors
+              // Pylonen: binary grading per original schema (0 = pass, ≥1 = fail).
+              // We still record exact count (0/1/2/3+) for PDF documentation,
+              // but the colors signal binary pass/fail to the trainer.
               const pylonOpts = [
-                { num: 0, label: '0', subLabel: 'alle stehen', color: '#00a86b' },  // green - perfect
-                { num: 1, label: '1', subLabel: 'eine um',    color: '#c09000' },  // yellow
-                { num: 2, label: '2', subLabel: 'zwei um',    color: '#d9643a' },  // orange
-                { num: 3, label: '3+', subLabel: 'drei+ um',  color: '#c82e4e' }   // red
+                { num: 0, label: '0', subLabel: 'alle stehen', color: '#00a86b' },  // green - pass
+                { num: 1, label: '1', subLabel: 'eine um',    color: '#c82e4e' },  // red - fail
+                { num: 2, label: '2', subLabel: 'zwei um',    color: '#c82e4e' },  // red - fail
+                { num: 3, label: '3+', subLabel: 'drei+ um',  color: '#c82e4e' }   // red - fail
               ];
               pylonOpts.forEach(opt => {
                 const btn = document.createElement('button');
@@ -2939,12 +2917,11 @@ function autoEval(c, ex, stats) {
     // Highspeed-Bremsungen: nur Untergrenze, "schneller ist besser"
     if (ex.refValue === 180) return stats.maxSpeed >= 170;
     if (ex.refValue === 160) return stats.maxSpeed >= 155;
-    // Manöver-Übungen: Soll-Bereich + Toleranz +4 km/h gelten als Pass,
-    // darüber Sicherheits-Fail (Regelverletzung, Übung verfälscht).
-    if (ex.refValue === 100) return stats.maxSpeed >= 97 && stats.maxSpeed <= 107;
-    if (ex.refValue === 90)  return stats.maxSpeed >= 87 && stats.maxSpeed <= 97;
-    if (ex.refValue === 70)  return stats.maxSpeed >= 67 && stats.maxSpeed <= 77;
-    if (ex.refValue === 60)  return stats.maxSpeed >= 55 && stats.maxSpeed <= 69;
+    // Manöver-Übungen: ±5 km/h symmetrisch (original schema: ca. X km/h binär)
+    if (ex.refValue === 100) return stats.maxSpeed >= 95  && stats.maxSpeed <= 105;
+    if (ex.refValue === 90)  return stats.maxSpeed >= 85  && stats.maxSpeed <= 95;
+    if (ex.refValue === 70)  return stats.maxSpeed >= 65  && stats.maxSpeed <= 75;
+    if (ex.refValue === 60)  return stats.maxSpeed >= 55  && stats.maxSpeed <= 65;
     return true;
   }
   if (c.id === 'full_brake') {
