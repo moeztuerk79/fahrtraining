@@ -615,6 +615,13 @@ html, body { background: #0a0d12; color: #e8edf2; font-family: -apple-system, Bl
 .overview-cell.empty { color: #555f6e; }
 .demo-banner { background: #1f1808; border: 1px solid #ffb800; padding: 10px 14px; margin-bottom: 12px; font-size: 11px; color: #ffb800; text-align: center; font-family: 'Menlo', monospace; letter-spacing: 0.1em; }
 .chip { display: inline-block; padding: 4px 10px; background: rgba(255, 69, 0, 0.15); color: #ff4500; font-size: 11px; font-family: 'Menlo', monospace; letter-spacing: 0.05em; margin-right: 6px; margin-bottom: 4px; }
+
+/* PRODUCTION MODE: hide all demo-only UI elements */
+body.prod-mode .demo-only { display: none !important; }
+
+/* PRODUCTION MODE: small badge to visually distinguish from dev */
+body.prod-mode .prod-badge { display: inline-block; }
+.prod-badge { display: none; background: #00a86b; color: #fff; font-size: 9px; padding: 2px 6px; margin-left: 6px; font-family: 'Menlo', monospace; letter-spacing: 0.1em; vertical-align: middle; }
 </style>
 </head>
 <body>
@@ -644,8 +651,8 @@ html, body { background: #0a0d12; color: #e8edf2; font-family: -apple-system, Bl
     4. Trainer sieht am Ende eine Übersicht aller Teilnehmer
   </div>
   <button class="btn large" onclick="requestPerms()">▶ Sensoren freigeben &amp; Starten</button>
-  <button class="btn secondary" onclick="skipPerms()">Im Demo-Modus weiter (ohne Auto)</button>
-  <div class="info-box warn" style="margin-top: 14px;">
+  <button class="btn secondary demo-only" onclick="skipPerms()">Im Demo-Modus weiter (ohne Auto)</button>
+  <div class="info-box warn demo-only" style="margin-top: 14px;">
     <strong>Demo-Modus:</strong> Heute nicht im Auto? Klicken Sie sich durch alle Funktionen mit simulierten Daten.
   </div>
 </div>
@@ -749,7 +756,7 @@ html, body { background: #0a0d12; color: #e8edf2; font-family: -apple-system, Bl
   <!-- Copyright Footer -->
   <div style="margin-top: 40px; padding-top: 20px; border-top: 1px solid #1a2230; text-align: center;">
     <div style="font-size: 10px; color: #555f6e; font-family: 'Menlo', monospace; letter-spacing: 0.05em;">© 2026 Muhammed Öztürk · Alle Rechte vorbehalten</div>
-    <div style="font-size: 9px; color: #3a4250; font-family: 'Menlo', monospace; margin-top: 4px;">DRIVER.AI · Fahrtraining-Bewertung · v18</div>
+    <div style="font-size: 9px; color: #3a4250; font-family: 'Menlo', monospace; margin-top: 4px;" id="versionFooter">DRIVER.AI · Fahrtraining-Bewertung · v18</div>
   </div>
 </div>
 
@@ -847,10 +854,10 @@ html, body { background: #0a0d12; color: #e8edf2; font-family: -apple-system, Bl
   <div id="moreOptionsBox" style="display:none; margin-top: 10px; padding: 14px; background: #11151c; border: 1px solid #232a35;">
     <div style="font-size: 10px; letter-spacing: 0.2em; color: #8b95a3; font-family: 'Menlo', monospace; margin-bottom: 10px;">▸ WEITERE</div>
     <button class="btn secondary small" onclick="startQRScanResults()" style="margin-bottom: 6px;">📷 Ergebnisse per QR-Code empfangen (Notfall ohne Internet)</button>
-    <button class="btn secondary small" onclick="toggleDemoButtons()" id="demoToggleBtn" style="margin-bottom: 6px;">🔧 Demo-Modus aktivieren</button>
+    <button class="btn secondary small demo-only" onclick="toggleDemoButtons()" id="demoToggleBtn" style="margin-bottom: 6px;">🔧 Demo-Modus aktivieren</button>
   </div>
 
-  <div id="demoQuickBox" style="display:none; margin-top: 10px; padding: 14px; background: #11151c; border: 1px solid #c09000; border-left: 4px solid #c09000;">
+  <div id="demoQuickBox" class="demo-only" style="display:none; margin-top: 10px; padding: 14px; background: #11151c; border: 1px solid #c09000; border-left: 4px solid #c09000;">
     <div style="font-size: 10px; letter-spacing: 0.2em; color: #c09000; font-family: 'Menlo', monospace; margin-bottom: 10px;">▸ DEMO-MODUS · NUR ZUM TESTEN</div>
     <button class="btn secondary small" onclick="fillDummyRefs()" style="margin-bottom: 6px;">⚡ Alle Referenzen mit Dummy-Werten füllen</button>
     <button class="btn secondary small" onclick="fillDummyRuns()">⚡ Alle Teilnehmer-Durchläufe simulieren</button>
@@ -917,7 +924,7 @@ html, body { background: #0a0d12; color: #e8edf2; font-family: -apple-system, Bl
 
   <button class="btn green large" id="ssBtn" onclick="toggleRec()">▶ Aufzeichnung starten</button>
 
-  <div id="demoBtns" style="display:none; margin-top: 12px;">
+  <div id="demoBtns" class="demo-only" style="display:none; margin-top: 12px;">
     <div class="demo-banner">DEMO-MODUS: Wähle ein simuliertes Ergebnis</div>
     <div class="btn-row">
       <button class="btn small green" onclick="simRun('good')">Guter Durchlauf</button>
@@ -1405,6 +1412,17 @@ Object.defineProperty(window, 'EX', {
   get() { return getEX(); }
 });
 
+// ============================================================================
+// PRODUCTION MODE FLAG
+// ============================================================================
+// URL parameter `?prod` switches the app into production mode:
+//   - hides all demo / simulation UI (skipPerms button, fillDummyRuns, etc.)
+//   - sensor permission denial -> hard error instead of demo fallback
+//   - participant URLs auto-carry the `?prod` flag
+// The internal demo code (fillDummyRuns, skipPerms, ...) remains in place
+// but is unreachable from the UI in production mode.
+const IS_PROD = new URLSearchParams(window.location.search).has('prod');
+
 let state = {
   perms:false, demo:false,
   session:null,
@@ -1431,7 +1449,14 @@ async function requestPerms() {
   try {
     if (typeof DeviceMotionEvent !== 'undefined' && typeof DeviceMotionEvent.requestPermission === 'function') {
       const r = await DeviceMotionEvent.requestPermission();
-      if (r !== 'granted') { if (confirm('Sensor-Zugriff verweigert. Demo-Modus?')) skipPerms(); return; }
+      if (r !== 'granted') {
+        if (IS_PROD) {
+          alert('Sensoren nicht verfügbar.\n\nBitte erteilen Sie die Berechtigung in den Einstellungen Ihres Geräts und laden Sie die Seite neu.\n\nFalls Ihr Gerät keine Bewegungssensoren hat, nutzen Sie bitte ein anderes Smartphone.');
+          return;
+        }
+        if (confirm('Sensor-Zugriff verweigert. Demo-Modus?')) skipPerms();
+        return;
+      }
     }
     if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
       try { await DeviceOrientationEvent.requestPermission(); } catch(e){}
@@ -1446,7 +1471,13 @@ async function requestPerms() {
     state.perms = true;
     document.getElementById('statusText').textContent = 'Live';
     goHome();
-  } catch(e) { if (confirm('Fehler: ' + e.message + '\nDemo-Modus?')) skipPerms(); }
+  } catch(e) {
+    if (IS_PROD) {
+      alert('Sensor-Initialisierung fehlgeschlagen:\n\n' + (e.message || e) + '\n\nBitte Seite neu laden. Falls das Problem bestehen bleibt, nutzen Sie ein anderes Smartphone.');
+      return;
+    }
+    if (confirm('Fehler: ' + e.message + '\nDemo-Modus?')) skipPerms();
+  }
 }
 
 function skipPerms() {
@@ -1547,9 +1578,7 @@ function refreshHome() {
   if (linkArea) {
     linkArea.style.display = isParticipantView ? 'none' : 'block';
     if (!isParticipantView) {
-      const baseUrl = window.location.origin + window.location.pathname;
-      const participantUrl = baseUrl + '?teilnehmer';
-      document.getElementById('participantLinkText').textContent = participantUrl;
+      document.getElementById('participantLinkText').textContent = buildParticipantUrl();
     }
   }
   
@@ -1600,9 +1629,13 @@ function refreshHome() {
 // ============================================================================
 // PARTICIPANT LINK SHARING
 // ============================================================================
-function showParticipantLinkQR() {
+function buildParticipantUrl() {
   const baseUrl = window.location.origin + window.location.pathname;
-  const participantUrl = baseUrl + '?teilnehmer';
+  return baseUrl + '?teilnehmer' + (IS_PROD ? '&prod' : '');
+}
+
+function showParticipantLinkQR() {
+  const participantUrl = buildParticipantUrl();
   
   showScreen('screen-participant-link-qr');
   document.getElementById('participantLinkQRUrl').textContent = participantUrl;
@@ -1638,8 +1671,7 @@ function showParticipantLinkQR() {
 }
 
 function copyParticipantLink() {
-  const baseUrl = window.location.origin + window.location.pathname;
-  const participantUrl = baseUrl + '?teilnehmer';
+  const participantUrl = buildParticipantUrl();
   
   if (navigator.clipboard) {
     navigator.clipboard.writeText(participantUrl).then(() => {
@@ -1653,8 +1685,7 @@ function copyParticipantLink() {
 }
 
 function printParticipantLink() {
-  const baseUrl = window.location.origin + window.location.pathname;
-  const participantUrl = baseUrl + '?teilnehmer';
+  const participantUrl = buildParticipantUrl();
   const sessionName = state.session ? state.session.location : 'Driver.AI Training';
   
   // Get the existing canvas
@@ -4619,6 +4650,14 @@ function processFullResults(payload) {
       showScreen('screen-dashboard');
     }
   }, 600);
+}
+
+// Activate production mode CSS if ?prod URL parameter is present
+if (IS_PROD) {
+  document.body.classList.add('prod-mode');
+  // Update footer version label to clearly indicate production build
+  const vFooter = document.getElementById('versionFooter');
+  if (vFooter) vFooter.textContent = 'DRIVER.AI · Fahrtraining-Bewertung · v18-prod';
 }
 
 load();
