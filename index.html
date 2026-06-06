@@ -2878,20 +2878,19 @@ function simRun(q) {
     return;
   }
   
-  // Generate a synthetic recData curve so demo runs also produce diagrams.
-  // Simple shape: speed ramps up, peaks, ramps down; G's pulse around peaks.
-  const synthRec = [];
-  const samples = 20; // 20 samples for ~10s -> ~2Hz, lo-fi but enough for shape
-  for (let i = 0; i < samples; i++) {
-    const tFrac = i / (samples - 1);
-    const t = tFrac * dur * 1000;
-    const bell = Math.sin(tFrac * Math.PI); // 0..1..0
-    const speed = stats.maxSpeed * (0.4 + 0.6 * bell);
-    const ax = stats.minLongG * (1 - bell) + stats.maxLongG * bell * 0.3;
-    const ay = (stats.maxLatGAbs || 0) * Math.sin(tFrac * Math.PI * 4) * 0.9;
-    const yaw = (stats.maxYawAbs || 0) * Math.cos(tFrac * Math.PI * 3) * 0.5;
-    synthRec.push({t:Math.round(t), ax:+ax.toFixed(3), ay:+ay.toFixed(3), az:1, yaw:+yaw.toFixed(2), speed:+speed.toFixed(1)});
-  }
+  // Use the central physically-realistic synthetic recorder, with
+  // quality-dependent "cleanness" so warn/bad runs look slightly worse
+  // than the trainer reference (lower amplitudes, less symmetric).
+  const cleannessByQ = { good: 0.85, warn: 0.65, bad: 0.45 };
+  const synthRec = buildSyntheticRec(ex, {
+    refValue: ref,
+    peakSpeed: stats.maxSpeed,
+    peakLatG: stats.maxLatGAbs || 0.85,
+    peakLongG: stats.minLongG || -0.8,
+    quality: q,
+    dur: dur,
+    cleanness: cleannessByQ[q] || 0.7
+  });
   
   state.currentRun = { duration:dur, stats, recData:synthRec, timestamp:Date.now() };
   state.currentRun.simPylonFail = (q === 'bad');
@@ -4090,26 +4089,109 @@ function fillDummyRefs() {
 // Trainer reference looks "cleaner": slightly higher g-values, smoother curves.
 // Used only in demo-mode (fillDummyRefs); on the track real sensor data is recorded.
 function buildSyntheticTrainerRec(ex, refValue) {
-  const samples = 22;
-  // Estimate duration: time-based exercises use refValue as seconds, others use a fixed ~6s
-  const dur = (ex.refType === 'time' && refValue) ? refValue : 6.0;
-  const peakSpeed = (ex.refType === 'speed') ? refValue : (ex.refType === 'time' ? 70 : 60);
-  const peakLatG = (ex.refType === 'g') ? refValue * 0.95 : 0.95;  // trainer slightly higher g
-  const peakLongG = -1.05;  // strong, smooth braking
+  // Default trainer parameters: clean execution, high but realistic g-values
+  return buildSyntheticRec(ex, {
+    refValue: refValue,
+    peakSpeed: (ex.refType === 'speed') ? refValue : (ex.refType === 'time' ? 70 : 60),
+    peakLatG: (ex.refType === 'g') ? refValue * 0.95 : 0.95,
+    peakLongG: -1.05,  // strong, smooth braking
+    quality: 'good',
+    dur: (ex.refType === 'time' && refValue) ? refValue : 6.0,
+    cleanness: 1.0  // 1 = clean trainer execution
+  });
+}
+
+// Generate a synthetic recData curve with physically realistic profiles per exercise.
+// Used by both simRun (participant) and buildSyntheticTrainerRec (trainer reference).
+// opts: { refValue, peakSpeed, peakLatG, peakLongG, quality:'good'/'warn'/'bad', dur, cleanness }
+function buildSyntheticRec(ex, opts) {
+  const samples = 24;
+  const dur = opts.dur || 6.0;
+  const peakSpeed = opts.peakSpeed || 70;
+  const peakLatG = opts.peakLatG || 0.85;
+  const peakLongG = opts.peakLongG || -0.8;
+  const cleanness = (opts.cleanness != null) ? opts.cleanness : 0.8;
   const rec = [];
+  
+  // Identify exercise type
+  const exId = ex.id;
+  const isSlalom = exId === 'slalom';
+  const isHighspeedBraking = exId === 'hsb' || (ex.refType === 'speed' && peakSpeed >= 140);
+  const isDoubleLaneChange = exId === 'lc';
+  const isBrakeAndAvoid = exId === 'ba';
+  
   for (let i = 0; i < samples; i++) {
-    const tFrac = i / (samples - 1);
+    const tFrac = i / (samples - 1);  // 0..1
     const t = tFrac * dur * 1000;
-    const bell = Math.sin(tFrac * Math.PI);
-    // Speed: smooth bell curve
-    const speed = peakSpeed * (0.55 + 0.45 * bell);
-    // Lat-G: clean waves (trainer-style — symmetric, full amplitude)
-    const ay = peakLatG * Math.sin(tFrac * Math.PI * 4);
-    // Long-G: brake at the end for braking exercises, otherwise small
-    const ax = (ex.refType === 'speed' && peakSpeed >= 140)
-      ? peakLongG * Math.max(0, (tFrac - 0.5) * 2)  // brake in second half
-      : -0.2 * bell;
-    const yaw = 20 * Math.cos(tFrac * Math.PI * 3) * 0.6;
+    
+    let speed, ax, ay, yaw;
+    
+    if (isSlalom) {
+      // 6-7 Pylonen — speed builds, peaks mid-run, drops at end (stop in target zone)
+      const bell = Math.sin(tFrac * Math.PI);  // 0..1..0
+      speed = peakSpeed * (0.35 + 0.65 * bell);
+      // Multiple slalom waves: 6 cycles across the run
+      ay = peakLatG * cleanness * Math.sin(tFrac * Math.PI * 6);
+      // Light braking towards the end (target-zone stop)
+      ax = (tFrac > 0.75) ? peakLongG * 0.6 * (tFrac - 0.75) * 4 : -0.05;
+      yaw = 22 * Math.cos(tFrac * Math.PI * 5) * cleanness;
+      
+    } else if (isHighspeedBraking) {
+      // Straight-line acceleration, then hard braking from a brake point ~60% in
+      const brakePoint = 0.55;
+      if (tFrac < brakePoint) {
+        // Acceleration phase
+        speed = peakSpeed * (0.3 + 0.7 * (tFrac / brakePoint));
+        ax = 0.15;  // light positive g during acceleration
+      } else {
+        // Braking phase — quadratic decel to ~0
+        const brakePhase = (tFrac - brakePoint) / (1 - brakePoint);
+        speed = peakSpeed * Math.max(0, 1 - brakePhase * brakePhase * 1.05);
+        ax = peakLongG * Math.min(1, brakePhase * 2);  // ramps to full braking quickly
+      }
+      ay = 0.05 * Math.sin(tFrac * Math.PI * 8);  // tiny wobble, essentially straight
+      yaw = 2 * Math.sin(tFrac * Math.PI * 4);
+      
+    } else if (isDoubleLaneChange) {
+      // CONSTANT SPEED — driver maintains ~70 km/h throughout
+      speed = peakSpeed * (0.98 + 0.02 * Math.sin(tFrac * Math.PI * 2));  // tiny variation
+      // TWO distinct lateral peaks: one positive (evade left/right),
+      // brief stabilization, one negative (back), then ZERO (straight ahead).
+      // Use two narrow Gaussian-like bumps centered at 25% and 55% of the run.
+      const peak1 = Math.exp(-Math.pow((tFrac - 0.25) / 0.10, 2));  // positive peak at 25%
+      const peak2 = Math.exp(-Math.pow((tFrac - 0.55) / 0.10, 2));  // negative peak at 55%
+      ay = peakLatG * cleanness * (peak1 - peak2);
+      ax = -0.05;  // essentially no longitudinal change
+      yaw = 30 * cleanness * (peak1 - peak2);
+      
+    } else if (isBrakeAndAvoid) {
+      // Constant speed at first, then SIMULTANEOUS evade + brake in second half
+      const trigger = 0.40;  // surprise moment
+      if (tFrac < trigger) {
+        speed = peakSpeed;
+        ax = -0.05;
+        ay = 0;
+        yaw = 0;
+      } else {
+        const phase = (tFrac - trigger) / (1 - trigger);  // 0..1
+        // Hard braking
+        speed = peakSpeed * Math.max(0, 1 - phase * phase * 1.1);
+        ax = peakLongG * Math.min(1, phase * 1.8);
+        // Single evasive lateral peak shortly after trigger
+        const evadeBump = Math.exp(-Math.pow((phase - 0.25) / 0.15, 2));
+        ay = peakLatG * cleanness * evadeBump;
+        yaw = 25 * cleanness * evadeBump;
+      }
+      
+    } else {
+      // Fallback for any other exercise — generic bell + waves
+      const bell = Math.sin(tFrac * Math.PI);
+      speed = peakSpeed * (0.4 + 0.6 * bell);
+      ax = peakLongG * 0.3 * (1 - bell);
+      ay = peakLatG * cleanness * Math.sin(tFrac * Math.PI * 4) * 0.9;
+      yaw = 15 * Math.cos(tFrac * Math.PI * 3);
+    }
+    
     rec.push({
       t: Math.round(t),
       ax: +ax.toFixed(3),
