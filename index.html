@@ -3717,15 +3717,15 @@ function generateParticipantPDF(participant, returnBlob, withDiagrams) {
   
   y += 5;
   
-  // Per-exercise blocks
+  // Per-exercise blocks — one exercise per page
   EX.forEach((ex, idx) => {
     const runs = (participant.runs && participant.runs[ex.id]) || [];
     
-    // Check if we need a new page
-    if (y > 230) {
+    // Start a new page for every exercise after the first
+    if (idx > 0) {
       pdfFooter(doc, doc.internal.getNumberOfPages(), 0);
       doc.addPage();
-      pdfHeader(doc, 'Teilnehmer-Bewertung', participant.name + ' · Fortsetzung');
+      pdfHeader(doc, 'Teilnehmer-Bewertung', participant.name);
       y = 55;
     }
     
@@ -3890,12 +3890,11 @@ function generateParticipantPDF(participant, returnBlob, withDiagrams) {
     }
   });
   
-  // Overall summary at bottom
-  if (y > 240) {
-    pdfFooter(doc, doc.internal.getNumberOfPages(), 0);
-    doc.addPage();
-    y = 25;
-  }
+  // Overall summary on its own page
+  pdfFooter(doc, doc.internal.getNumberOfPages(), 0);
+  doc.addPage();
+  pdfHeader(doc, 'Teilnehmer-Bewertung', participant.name + ' · Gesamtergebnis');
+  y = 55;
   
   // Overall result
   const allGrades = [];
@@ -4070,18 +4069,57 @@ function fillDummyRefs() {
   if (!state.session) return;
   if (!confirm('Alle Übungen mit realistischen Dummy-Referenzwerten füllen?')) return;
   const refs = {};
+  const recs = {};
   const msgLines = [];
   EX.forEach(ex => {
     const v = getDummyRef(ex);
     refs[ex.id] = v;
+    recs[ex.id] = buildSyntheticTrainerRec(ex, v);
     if (ex.refType === 'time') msgLines.push(`• ${ex.name}: ${v.toFixed(2)} s`);
     else if (ex.refType === 'g') msgLines.push(`• ${ex.name}: ${v.toFixed(1)} g`);
     else msgLines.push(`• ${ex.name}: ${Math.round(v)} km/h`);
   });
   state.session.references = refs;
+  state.session.referenceRecordings = recs;
   save();
   alert('Dummy-Referenzen gesetzt:\n\n' + msgLines.join('\n') + '\n\nDer Teilnehmer-Modus ist jetzt freigeschaltet!');
   enterDashboard();
+}
+
+// Generate a synthetic trainer recording (recData array).
+// Trainer reference looks "cleaner": slightly higher g-values, smoother curves.
+// Used only in demo-mode (fillDummyRefs); on the track real sensor data is recorded.
+function buildSyntheticTrainerRec(ex, refValue) {
+  const samples = 22;
+  // Estimate duration: time-based exercises use refValue as seconds, others use a fixed ~6s
+  const dur = (ex.refType === 'time' && refValue) ? refValue : 6.0;
+  const peakSpeed = (ex.refType === 'speed') ? refValue : (ex.refType === 'time' ? 70 : 60);
+  const peakLatG = (ex.refType === 'g') ? refValue * 0.95 : 0.95;  // trainer slightly higher g
+  const peakLongG = -1.05;  // strong, smooth braking
+  const rec = [];
+  for (let i = 0; i < samples; i++) {
+    const tFrac = i / (samples - 1);
+    const t = tFrac * dur * 1000;
+    const bell = Math.sin(tFrac * Math.PI);
+    // Speed: smooth bell curve
+    const speed = peakSpeed * (0.55 + 0.45 * bell);
+    // Lat-G: clean waves (trainer-style — symmetric, full amplitude)
+    const ay = peakLatG * Math.sin(tFrac * Math.PI * 4);
+    // Long-G: brake at the end for braking exercises, otherwise small
+    const ax = (ex.refType === 'speed' && peakSpeed >= 140)
+      ? peakLongG * Math.max(0, (tFrac - 0.5) * 2)  // brake in second half
+      : -0.2 * bell;
+    const yaw = 20 * Math.cos(tFrac * Math.PI * 3) * 0.6;
+    rec.push({
+      t: Math.round(t),
+      ax: +ax.toFixed(3),
+      ay: +ay.toFixed(3),
+      az: 1,
+      yaw: +yaw.toFixed(2),
+      speed: +speed.toFixed(1)
+    });
+  }
+  return rec;
 }
 
 function fillDummyRuns() {
