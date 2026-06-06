@@ -1028,7 +1028,8 @@ body.prod-mode .prod-badge { display: inline-block; }
   <div style="margin-top: 18px; padding: 14px; background: #11151c; border: 1px solid #232a35; border-left: 4px solid #ff4500;">
     <div style="font-size: 11px; letter-spacing: 0.15em; color: #ff4500; font-family: 'Menlo', monospace; margin-bottom: 12px;">▸ PDF & VERSAND</div>
     <button class="btn" onclick="generateOverviewPDF()" style="margin-bottom: 6px;">📄 Trainer-Übersicht als PDF</button>
-    <button class="btn secondary" onclick="generateAllParticipantPDFs()" style="margin-bottom: 6px;">📋 PDFs pro Teilnehmer</button>
+    <button class="btn secondary" onclick="generateAllParticipantPDFs()" style="margin-bottom: 6px;">📋 PDFs pro Teilnehmer (für Versand)</button>
+    <button class="btn secondary" onclick="generateAllParticipantPDFs(true)" style="margin-bottom: 6px;">📊 Coaching-PDFs mit Diagrammen (nur Trainer)</button>
     <button class="btn secondary" onclick="shareSessionPDF()" id="shareBtn">📤 Per Email / Teilen</button>
   </div>
   
@@ -2744,15 +2745,44 @@ function startRec() {
   }, 100);
 }
 
+// Downsample raw sensor data from ~60Hz to ~20Hz to keep storage/transfer manageable.
+// Returns array of {t,ax,ay,az,yaw,speed} with at most ~20 samples per second.
+function downsampleRecData(data) {
+  if (!data || data.length === 0) return [];
+  // Target ~20 Hz = sample every 50 ms
+  const TARGET_INTERVAL = 50;
+  const result = [];
+  let lastT = -Infinity;
+  for (const d of data) {
+    if (d.t - lastT >= TARGET_INTERVAL) {
+      result.push({
+        t: d.t,
+        ax: +d.ax.toFixed(3),
+        ay: +d.ay.toFixed(3),
+        az: +d.az.toFixed(3),
+        yaw: +d.yaw.toFixed(2),
+        speed: +d.speed.toFixed(1)
+      });
+      lastT = d.t;
+    }
+  }
+  return result;
+}
+
 function stopRec(abort) {
   state.rec = false; clearInterval(state.recTimer);
   if (abort) { resetRec(); return; }
   const dur = (Date.now()-state.recStart)/1000;
   const stats = computeStats(state.recData, dur);
-  state.currentRun = { duration:dur, stats, timestamp:Date.now() };
+  // Downsample raw data once, reuse for both currentRun and reference storage
+  const downsampled = downsampleRecData(state.recData);
+  state.currentRun = { duration:dur, stats, recData:downsampled, timestamp:Date.now() };
   if (state.mode === 'trainer') {
     const ex = EX.find(e=>e.id===state.currentEx);
     state.session.references[ex.id] = ex.refType==='time' ? dur : (stats.maxSpeed || ex.refValue);
+    // Also store the trainer's full recording for later diagram overlay (Trainer-PDF)
+    if (!state.session.referenceRecordings) state.session.referenceRecordings = {};
+    state.session.referenceRecordings[ex.id] = downsampled;
     save();
     alert(`Referenz gespeichert!\n${ex.refType==='time'?'Zeit: '+dur.toFixed(2)+' s':'Speed: '+Math.round(stats.maxSpeed)+' km/h'}`);
     backFromExercise();
@@ -2848,7 +2878,22 @@ function simRun(q) {
     return;
   }
   
-  state.currentRun = { duration:dur, stats, timestamp:Date.now() };
+  // Generate a synthetic recData curve so demo runs also produce diagrams.
+  // Simple shape: speed ramps up, peaks, ramps down; G's pulse around peaks.
+  const synthRec = [];
+  const samples = 20; // 20 samples for ~10s -> ~2Hz, lo-fi but enough for shape
+  for (let i = 0; i < samples; i++) {
+    const tFrac = i / (samples - 1);
+    const t = tFrac * dur * 1000;
+    const bell = Math.sin(tFrac * Math.PI); // 0..1..0
+    const speed = stats.maxSpeed * (0.4 + 0.6 * bell);
+    const ax = stats.minLongG * (1 - bell) + stats.maxLongG * bell * 0.3;
+    const ay = (stats.maxLatGAbs || 0) * Math.sin(tFrac * Math.PI * 4) * 0.9;
+    const yaw = (stats.maxYawAbs || 0) * Math.cos(tFrac * Math.PI * 3) * 0.5;
+    synthRec.push({t:Math.round(t), ax:+ax.toFixed(3), ay:+ay.toFixed(3), az:1, yaw:+yaw.toFixed(2), speed:+speed.toFixed(1)});
+  }
+  
+  state.currentRun = { duration:dur, stats, recData:synthRec, timestamp:Date.now() };
   state.currentRun.simPylonFail = (q === 'bad');
   evalRun();
 }
@@ -3481,9 +3526,187 @@ function computeSessionStats() {
 }
 
 // ============================================================================
+// Diagram generation (Trainer-PDF only)
+// Renders sensor traces (e.g. Speed, Lat-G) onto a canvas, returns PNG dataURL.
+// Used by generateParticipantPDF when withDiagrams=true.
+// ============================================================================
+
+// Extract a single trace from recData. field = 'speed' | 'ax' | 'ay' | 'yaw' | 'az'
+function getTrace(recData, field) {
+  if (!recData || recData.length === 0) return [];
+  return recData.map(d => ({ t: d.t / 1000, v: d[field] || 0 }));
+}
+
+// Render multiple traces onto a canvas. Returns Base64 PNG dataURL.
+// opts: { title, yLabel, traces:[{data,color,label}], yZeroLine:bool, height }
+function renderTraceChart(opts) {
+  const W = 800, H = opts.height || 220;
+  const canvas = document.createElement('canvas');
+  canvas.width = W; canvas.height = H;
+  const ctx = canvas.getContext('2d');
+  
+  // Background
+  ctx.fillStyle = '#ffffff';
+  ctx.fillRect(0, 0, W, H);
+  
+  // Layout
+  const PAD_L = 55, PAD_R = 130, PAD_T = 30, PAD_B = 32;
+  const plotW = W - PAD_L - PAD_R;
+  const plotH = H - PAD_T - PAD_B;
+  
+  // Determine x range (time) and y range
+  let tMin = Infinity, tMax = -Infinity, vMin = Infinity, vMax = -Infinity;
+  opts.traces.forEach(tr => {
+    tr.data.forEach(p => {
+      if (p.t < tMin) tMin = p.t;
+      if (p.t > tMax) tMax = p.t;
+      if (p.v < vMin) vMin = p.v;
+      if (p.v > vMax) vMax = p.v;
+    });
+  });
+  if (!isFinite(tMin)) { tMin = 0; tMax = 1; vMin = 0; vMax = 1; }
+  if (tMax === tMin) tMax = tMin + 1;
+  // Add y-padding
+  const vRange = vMax - vMin;
+  if (vRange < 0.1) { vMin -= 0.5; vMax += 0.5; }
+  else { vMin -= vRange * 0.1; vMax += vRange * 0.1; }
+  
+  // Coordinate helpers
+  const xPx = t => PAD_L + (t - tMin) / (tMax - tMin) * plotW;
+  const yPx = v => PAD_T + (1 - (v - vMin) / (vMax - vMin)) * plotH;
+  
+  // Title
+  ctx.fillStyle = '#0a0d12';
+  ctx.font = 'bold 14px Helvetica, Arial';
+  ctx.textAlign = 'left';
+  ctx.fillText(opts.title || '', PAD_L, 18);
+  
+  // Y-axis label (rotated)
+  if (opts.yLabel) {
+    ctx.save();
+    ctx.translate(15, PAD_T + plotH / 2);
+    ctx.rotate(-Math.PI / 2);
+    ctx.fillStyle = '#666';
+    ctx.font = '10px Helvetica, Arial';
+    ctx.textAlign = 'center';
+    ctx.fillText(opts.yLabel, 0, 0);
+    ctx.restore();
+  }
+  
+  // X-axis label
+  ctx.fillStyle = '#666';
+  ctx.font = '10px Helvetica, Arial';
+  ctx.textAlign = 'center';
+  ctx.fillText('Zeit [s]', PAD_L + plotW / 2, H - 8);
+  
+  // Grid + axes
+  ctx.strokeStyle = '#e0e3e8';
+  ctx.lineWidth = 0.5;
+  ctx.font = '9px Helvetica, Arial';
+  ctx.fillStyle = '#888';
+  
+  // Y-grid (5 lines)
+  for (let i = 0; i <= 5; i++) {
+    const yv = vMin + (vMax - vMin) * i / 5;
+    const py = yPx(yv);
+    ctx.beginPath();
+    ctx.moveTo(PAD_L, py); ctx.lineTo(PAD_L + plotW, py);
+    ctx.stroke();
+    ctx.textAlign = 'right';
+    ctx.fillText(yv.toFixed(1), PAD_L - 4, py + 3);
+  }
+  // X-grid (5 lines)
+  for (let i = 0; i <= 5; i++) {
+    const tv = tMin + (tMax - tMin) * i / 5;
+    const px = xPx(tv);
+    ctx.beginPath();
+    ctx.moveTo(px, PAD_T); ctx.lineTo(px, PAD_T + plotH);
+    ctx.stroke();
+    ctx.textAlign = 'center';
+    ctx.fillText(tv.toFixed(1), px, PAD_T + plotH + 12);
+  }
+  
+  // Zero line (emphasized)
+  if (opts.yZeroLine && vMin < 0 && vMax > 0) {
+    ctx.strokeStyle = '#999';
+    ctx.lineWidth = 1;
+    ctx.setLineDash([3, 3]);
+    const py = yPx(0);
+    ctx.beginPath();
+    ctx.moveTo(PAD_L, py); ctx.lineTo(PAD_L + plotW, py);
+    ctx.stroke();
+    ctx.setLineDash([]);
+  }
+  
+  // Border
+  ctx.strokeStyle = '#333';
+  ctx.lineWidth = 1;
+  ctx.strokeRect(PAD_L, PAD_T, plotW, plotH);
+  
+  // Draw traces
+  opts.traces.forEach(tr => {
+    if (!tr.data || tr.data.length < 2) return;
+    ctx.strokeStyle = tr.color;
+    ctx.lineWidth = tr.lineWidth || 2;
+    ctx.beginPath();
+    tr.data.forEach((p, i) => {
+      const x = xPx(p.t), y = yPx(p.v);
+      if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+    });
+    ctx.stroke();
+  });
+  
+  // Legend (right side)
+  const legendX = PAD_L + plotW + 12;
+  let legendY = PAD_T + 5;
+  opts.traces.forEach(tr => {
+    ctx.strokeStyle = tr.color;
+    ctx.lineWidth = 2.5;
+    ctx.beginPath();
+    ctx.moveTo(legendX, legendY); ctx.lineTo(legendX + 18, legendY);
+    ctx.stroke();
+    ctx.fillStyle = '#0a0d12';
+    ctx.font = '10px Helvetica, Arial';
+    ctx.textAlign = 'left';
+    ctx.fillText(tr.label, legendX + 22, legendY + 3);
+    legendY += 16;
+  });
+  
+  return canvas.toDataURL('image/png');
+}
+
+// Pick the right diagram type for an exercise.
+// Returns array of {title, yLabel, field, yZeroLine}
+// Real exercise IDs in Basistraining: slalom, hsb, lc, ba
+function getDiagramSpecsForExercise(ex) {
+  const isSlalom = ex.id === 'slalom';
+  const isHighspeedBraking = ex.id === 'hsb' || ex.id === 'highspeed' || (ex.refType === 'speed' && ex.refValue >= 140);
+  const isLaneChange = ex.id === 'lc' || ex.id === 'lanechange';
+  const isBrakeAvoid = ex.id === 'ba' || ex.id === 'brakeavoid';
+  
+  if (isHighspeedBraking) {
+    return [
+      { title: 'Geschwindigkeit', yLabel: 'km/h', field: 'speed', yZeroLine: false },
+      { title: 'Längs-Beschleunigung (Bremsen)', yLabel: 'g', field: 'ax', yZeroLine: true }
+    ];
+  }
+  if (isSlalom || isLaneChange || isBrakeAvoid) {
+    return [
+      { title: 'Querbeschleunigung', yLabel: 'g', field: 'ay', yZeroLine: true },
+      { title: 'Geschwindigkeit', yLabel: 'km/h', field: 'speed', yZeroLine: false }
+    ];
+  }
+  // Fallback for other programs: Speed + Lat-G
+  return [
+    { title: 'Geschwindigkeit', yLabel: 'km/h', field: 'speed', yZeroLine: false },
+    { title: 'Querbeschleunigung', yLabel: 'g', field: 'ay', yZeroLine: true }
+  ];
+}
+
+// ============================================================================
 // Participant PDF
 // ============================================================================
-function generateParticipantPDF(participant, returnBlob) {
+function generateParticipantPDF(participant, returnBlob, withDiagrams) {
   if (!window.jspdf) { alert('PDF-Library noch nicht geladen.'); return; }
   
   const { jsPDF } = window.jspdf;
@@ -3618,6 +3841,52 @@ function generateParticipantPDF(participant, returnBlob) {
       });
       
       y = doc.lastAutoTable.finalY + 6;
+      
+      // Trainer-Version only: add diagrams for this exercise
+      if (withDiagrams) {
+        const specs = getDiagramSpecsForExercise(ex);
+        const trainerRec = (state.session.referenceRecordings || {})[ex.id] || [];
+        // Pick best run's recData as the participant trace
+        const participantRec = bestRun.recData || [];
+        
+        if (participantRec.length > 0 || trainerRec.length > 0) {
+          specs.forEach(spec => {
+            // Need new page if there's not enough space (each chart ~ 60mm tall)
+            if (y > 220) {
+              pdfFooter(doc, doc.internal.getNumberOfPages(), 0);
+              doc.addPage();
+              pdfHeader(doc, 'Coaching-Diagramme', participant.name + ' · ' + ex.name);
+              y = 55;
+            }
+            const traces = [];
+            if (trainerRec.length > 0) {
+              traces.push({ data: getTrace(trainerRec, spec.field), color: '#4A90C2', label: 'Trainer-Referenz', lineWidth: 2 });
+            }
+            if (participantRec.length > 0) {
+              traces.push({ data: getTrace(participantRec, spec.field), color: '#FF4500', label: 'Teilnehmer (bester Lauf)', lineWidth: 2.5 });
+            }
+            const png = renderTraceChart({
+              title: spec.title + ' · ' + ex.name,
+              yLabel: spec.yLabel,
+              traces: traces,
+              yZeroLine: spec.yZeroLine,
+              height: 220
+            });
+            // Image is 800x220 px = ratio 800/220 = 3.64. We render it at 180mm wide.
+            const imgW = 180;
+            const imgH = imgW * 220 / 800;
+            doc.addImage(png, 'PNG', 15, y, imgW, imgH);
+            y += imgH + 4;
+          });
+        } else {
+          // No recorded data available — small note
+          doc.setTextColor(...COLORS.gray);
+          doc.setFontSize(7);
+          doc.setFont('helvetica', 'italic');
+          doc.text('Keine Diagramm-Daten verfügbar (Aufzeichnung nicht erfasst).', 19, y);
+          y += 6;
+        }
+      }
     }
   });
   
@@ -3673,7 +3942,8 @@ function generateParticipantPDF(participant, returnBlob) {
     pdfFooter(doc, i, totalPages);
   }
   
-  const filename = `DriverAI_${participant.name.replace(/\s/g, '_')}_${state.session.date}.pdf`;
+  const suffix = withDiagrams ? '_Coaching' : '';
+  const filename = `DriverAI_${participant.name.replace(/\s/g, '_')}_${state.session.date}${suffix}.pdf`;
   
   if (returnBlob) {
     return { blob: doc.output('blob'), filename };
@@ -3682,15 +3952,16 @@ function generateParticipantPDF(participant, returnBlob) {
   doc.save(filename);
 }
 
-function generateAllParticipantPDFs() {
+function generateAllParticipantPDFs(withDiagrams) {
   if (!state.session || state.session.participants.length === 0) {
     alert('Keine Teilnehmer in der Session.');
     return;
   }
-  if (!confirm(`${state.session.participants.length} PDF-Dateien generieren (eine pro Teilnehmer)?`)) return;
+  const label = withDiagrams ? `${state.session.participants.length} Coaching-PDFs mit Diagrammen generieren?` : `${state.session.participants.length} PDF-Dateien generieren (eine pro Teilnehmer)?`;
+  if (!confirm(label)) return;
   
   state.session.participants.forEach((p, i) => {
-    setTimeout(() => generateParticipantPDF(p), i * 300);
+    setTimeout(() => generateParticipantPDF(p, false, withDiagrams), i * 300);
   });
 }
 
