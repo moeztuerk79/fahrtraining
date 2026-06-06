@@ -756,7 +756,7 @@ body.prod-mode .prod-badge { display: inline-block; }
   <!-- Copyright Footer -->
   <div style="margin-top: 40px; padding-top: 20px; border-top: 1px solid #1a2230; text-align: center;">
     <div style="font-size: 10px; color: #555f6e; font-family: 'Menlo', monospace; letter-spacing: 0.05em;">© 2026 Muhammed Öztürk · Alle Rechte vorbehalten</div>
-    <div style="font-size: 9px; color: #3a4250; font-family: 'Menlo', monospace; margin-top: 4px;" id="versionFooter">DRIVER.AI · Fahrtraining-Bewertung · v18</div>
+    <div style="font-size: 9px; color: #3a4250; font-family: 'Menlo', monospace; margin-top: 4px;" id="versionFooter">DRIVER.AI · Fahrtraining-Bewertung · v20</div>
   </div>
 </div>
 
@@ -4966,7 +4966,7 @@ if (IS_PROD) {
   document.body.classList.add('prod-mode');
   // Update footer version label to clearly indicate production build
   const vFooter = document.getElementById('versionFooter');
-  if (vFooter) vFooter.textContent = 'DRIVER.AI · Fahrtraining-Bewertung · v18-prod';
+  if (vFooter) vFooter.textContent = 'DRIVER.AI · Fahrtraining-Bewertung · v20-prod';
 }
 
 load();
